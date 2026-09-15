@@ -145,7 +145,17 @@ static void pspEndFrameEnd(Renderer *renderer){(void)renderer;pspDiagReport();ps
 static void pspBeginView(Renderer *renderer,int32_t viewX,int32_t viewY,int32_t viewW,int32_t viewH,int32_t portX,int32_t portY,int32_t portW,int32_t portH,float viewAngle){
     (void)viewAngle;
     renderer->CPortX=portX;renderer->CPortY=portY;renderer->CPortW=portW;renderer->CPortH=portH;
-    setViewTransform((float)viewX,(float)viewY,(float)viewW,(float)viewH,portX,portY,portW,portH);
+    // Preserve the GameMaker camera aspect ratio instead of stretching a 4:3 room
+    // directly into the PSP 16:9 framebuffer. This is also the native-feeling
+    // framing used by Undertale: the full room view remains visible with pillarbox bars.
+    float sx=(viewW>0)?((float)portW/(float)viewW):1.0f;
+    float sy=(viewH>0)?((float)portH/(float)viewH):1.0f;
+    float scale=(sx<sy)?sx:sy;
+    int fitW=(int)floorf((float)viewW*scale+0.5f);
+    int fitH=(int)floorf((float)viewH*scale+0.5f);
+    int fitX=portX+(portW-fitW)/2;
+    int fitY=portY+(portH-fitH)/2;
+    setViewTransform((float)viewX,(float)viewY,(float)viewW,(float)viewH,fitX,fitY,fitW,fitH);
 }
 static void pspEndView(Renderer *renderer){(void)renderer;}
 static void pspBeginGUI(Renderer *renderer,int32_t guiW,int32_t guiH,int32_t portX,int32_t portY,int32_t portW,int32_t portH,int32_t targetSurfaceId){
