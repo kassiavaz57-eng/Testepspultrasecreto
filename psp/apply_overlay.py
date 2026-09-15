@@ -130,7 +130,7 @@ s = s.replace(final_link, final_link_psp, 1)
 CM.write_text(s)
 
 PSP_SRC.mkdir(parents=True, exist_ok=True)
-required = ["psp_main.c", "psp_file_system.c", "psp_file_system.h", "psp_input.c", "psp_input.h", "stb_impl.c"]
+required = ["psp_main.c", "psp_file_system.c", "psp_file_system.h", "psp_input.c", "psp_input.h", "psp_renderer.c", "psp_renderer.h", "stb_impl.c"]
 for name in required:
     src = ROOT / name
     if not src.exists():
