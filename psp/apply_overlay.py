@@ -171,8 +171,7 @@ static void pspRunnerDiagReport(void) {
     FILE* f = fopen("ms0:/PSP/GAME/BUTTERSCOTCH/psp_diag_runner.txt", "a");
     if (f == NULL) return;
     fprintf(f,
-        "RUNNER_DIAG frames=%lu viewsEnabled=%lu viewsSeen=%lu cameraNull=%lu beginViews=%lu fallback=%lu runnerDraw=%lu maxDrawables=%lu instancesVisited=%lu instancesVisible=%lu drawEvents=%lu directSelf=%lu
-",
+        "RUNNER_DIAG frames=%lu viewsEnabled=%lu viewsSeen=%lu cameraNull=%lu beginViews=%lu fallback=%lu runnerDraw=%lu maxDrawables=%lu instancesVisited=%lu instancesVisible=%lu drawEvents=%lu directSelf=%lu\\n",
         pspDiagRunnerFrames, pspDiagViewsEnabled, pspDiagViewsSeen, pspDiagCameraNull,
         pspDiagBeginViews, pspDiagFallback, pspDiagRunnerDraw, pspDiagMaxDrawables,
         pspDiagInstancesVisited, pspDiagInstancesVisible, pspDiagDrawEvents, pspDiagDirectSelf);
