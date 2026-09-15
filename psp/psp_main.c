@@ -2,6 +2,7 @@
 #include <pspctrl.h>
 #include <pspgu.h>
 #include <pspdisplay.h>
+#include <psprtc.h>
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdint.h>
@@ -33,7 +34,21 @@ int main(void){
     Runner *runner=Runner_create(d, vm, renderer, fs, audio, 0);
     if(!runner) sceKernelExitGame();
     Runner_initFirstRoom(runner);
+    sceCtrlSetSamplingCycle(0);
+    sceCtrlSetSamplingMode(PSP_CTRL_MODE_ANALOG);
+    uint64_t lastFrameUs = sceKernelGetSystemTimeWide();
     for(;;){
+    uint64_t frameStartUs = sceKernelGetSystemTimeWide();
+    uint64_t elapsedUs = frameStartUs - lastFrameUs;
+    lastFrameUs = frameStartUs;
+    // Runner deltaTime is expressed in microseconds. Cap large stalls so a slow PSP/PPSSPP frame
+    // cannot inject an enormous simulation step.
+    if (elapsedUs > 100000ULL) elapsedUs = 100000ULL;
+    runner->deltaTime = (double)elapsedUs;
+    RunnerKeyboard_beginFrame(runner->keyboard);
+    SceCtrlData pad;
+    sceCtrlReadBufferPositive(&pad, 1);
+    PspInput_poll(runner, &pad);
     Runner_step(runner);
     int32_t gameW=(int32_t)d->gen8.defaultWindowWidth, gameH=(int32_t)d->gen8.defaultWindowHeight;
     // The PSP renderer owns a live GU display list. Start the frame before any
@@ -45,10 +60,10 @@ int main(void){
     Runner_drawPost(runner,480,272);
     runner->renderer->vtable->endFrameEnd(runner->renderer);
     Runner_drawGUI(runner,480,272,gameW,gameH);
-    sceCtrlReadBufferPositive(NULL,0);
-    RunnerKeyboard_beginFrame(runner->keyboard);
     sceGuFinish(); sceGuSync(GU_SYNC_FINISH,GU_SYNC_WHAT_DONE);
-    sceDisplayWaitVblankStart(); sceGuSwapBuffers();
+    sceDisplayWaitVblankStart();
+    sceDisplayWaitVblankStart();
+    sceGuSwapBuffers();
     // Match the shared runner loop: consume a queued room change after the frame.
     Runner_handlePendingRoomChange(runner);
 }
