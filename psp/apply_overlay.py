@@ -117,6 +117,16 @@ loop_s = loop_s.replace(
 )
 loop.write_text(loop_s)
 
+# Ensure PSP libraries are attached to the final executable target.
+final_link = '        target_link_libraries(butterscotch PRIVATE ${BACKEND_LIBRARIES} ${AUDIO_LIBRARIES} ${PLATFORM_LIBRARIES})'
+final_link_psp = final_link + '''
+        if(PLATFORM STREQUAL "psp")
+            target_link_libraries(butterscotch PRIVATE pspuser pspdebug pspctrl)
+        endif()'''
+if final_link not in s:
+    raise SystemExit("ERROR: final target link line changed upstream")
+s = s.replace(final_link, final_link_psp, 1)
+
 CM.write_text(s)
 
 PSP_SRC.mkdir(parents=True, exist_ok=True)
