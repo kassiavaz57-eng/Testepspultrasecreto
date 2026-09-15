@@ -1,3 +1,5 @@
+#include <pspctrl.h>
+#include <stdbool.h>
 #include "psp_input.h"
 #include "runner_keyboard.h"
 static int key(uint32_t b){switch(b){case PSP_CTRL_UP:return VK_UP;case PSP_CTRL_DOWN:return VK_DOWN;case PSP_CTRL_LEFT:return VK_LEFT;case PSP_CTRL_RIGHT:return VK_RIGHT;case PSP_CTRL_CROSS:return 'Z';case PSP_CTRL_CIRCLE:return 'X';case PSP_CTRL_SQUARE:return 'C';case PSP_CTRL_TRIANGLE:return 'V';case PSP_CTRL_START:return VK_ENTER;case PSP_CTRL_SELECT:return VK_ESCAPE;default:return -1;}}
