@@ -121,7 +121,16 @@ loop.write_text(loop_s)
 final_link = '        target_link_libraries(butterscotch PRIVATE ${BACKEND_LIBRARIES} ${AUDIO_LIBRARIES} ${PLATFORM_LIBRARIES})'
 final_link_psp = final_link + '''
         if(PLATFORM STREQUAL "psp")
-            target_link_libraries(butterscotch PRIVATE pspuser pspctrl)
+            # Keep the PSP SDK libraries on the final link line explicitly.
+            # The upstream platform variable can be overwritten later.
+            target_link_libraries(butterscotch PRIVATE
+                pspuser
+                pspctrl
+                pspgu
+                pspge
+                pspgum
+                pspdisplay
+            )
         endif()'''
 if final_link not in s:
     raise SystemExit("ERROR: final target link line changed upstream")
