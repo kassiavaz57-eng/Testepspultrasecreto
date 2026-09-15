@@ -31,10 +31,14 @@ static int g_cachedPage=-1,g_cachedW=0,g_cachedH=0;
 static int nextPow2(int v){int n=1;while(n<v&&n<PSP_TEX_MAX)n<<=1;return n;}
 static void cacheClear(void){free(g_cachedPixels);g_cachedPixels=NULL;g_cachedPixelsSize=0;g_cachedPage=-1;g_cachedW=g_cachedH=0;}
 static uint32_t bgrToGu(uint32_t c,float alpha){unsigned int a=(unsigned int)(alpha*255.0f);if(a>255)a=255;return GU_RGBA(BGR_R(c),BGR_G(c),BGR_B(c),a);}
-static void setOrtho(float l,float r,float t,float b,int px,int py,int pw,int ph){
- sceGuViewport(2048,2048,pw,ph); sceGuScissor(px,py,px+pw,py+ph);
- sceGumMatrixMode(GU_PROJECTION); sceGumLoadIdentity(); sceGumOrtho(l,r,b,t,-1.0f,1.0f);
- sceGumMatrixMode(GU_VIEW); sceGumLoadIdentity(); sceGumMatrixMode(GU_MODEL); sceGumLoadIdentity();
+static float g_viewX=0.0f,g_viewY=0.0f,g_scaleX=1.0f,g_scaleY=1.0f,g_offX=0.0f,g_offY=0.0f;
+static void setViewTransform(float viewX,float viewY,float viewW,float viewH,int px,int py,int pw,int ph){
+    sceGuViewport(2048,2048,pw,ph);
+    sceGuScissor(px,py,px+pw,py+ph);
+    g_viewX=viewX; g_viewY=viewY;
+    g_scaleX=(viewW!=0.0f)?((float)pw/viewW):1.0f;
+    g_scaleY=(viewH!=0.0f)?((float)ph/viewH):1.0f;
+    g_offX=(float)px; g_offY=(float)py;
 }
 static bool loadPage(DataWin *dw,int pageId){
  if(pageId<0||(uint32_t)pageId>=dw->txtr.count)return false;
@@ -57,9 +61,14 @@ static bool uploadRect(DataWin *dw,int pageId,int sx,int sy,int sw,int sh,int *t
 }
 static void releaseLargePageCache(void){if(g_cachedPixels&&g_cachedPixelsSize>(size_t)8*1024*1024)cacheClear();}
 static void drawQuad(float x0,float y0,float x1,float y1,float x2,float y2,float x3,float y3,float u0,float v0,float u1,float v1,uint32_t c0,uint32_t c1,uint32_t c2,uint32_t c3){
- PSPVertex *v=(PSPVertex*)sceGuGetMemory(4*sizeof(PSPVertex));
- v[0]=(PSPVertex){u0,v0,c0,x0,y0,0};v[1]=(PSPVertex){u1,v0,c1,x1,y1,0};v[2]=(PSPVertex){u1,v1,c2,x2,y2,0};v[3]=(PSPVertex){u0,v1,c3,x3,y3,0};
- sceGuDrawArray(GU_TRIANGLE_FAN,GU_TEXTURE_32BITF|GU_COLOR_8888|GU_VERTEX_32BITF|GU_TRANSFORM_2D,4,NULL,v);
+    float xs[4]={x0,x1,x2,x3},ys[4]={y0,y1,y2,y3};
+    PSPVertex *v=(PSPVertex*)sceGuGetMemory(4*sizeof(PSPVertex));
+    for(int i=0;i<4;i++){
+        float tx=(xs[i]-g_viewX)*g_scaleX+g_offX;
+        float ty=(ys[i]-g_viewY)*g_scaleY+g_offY;
+        v[i]=(PSPVertex){i==1||i==2?u1:u0,i>=2?v1:v0,i==0?c0:i==1?c1:i==2?c2:c3,tx,ty,0};
+    }
+    sceGuDrawArray(GU_TRIANGLE_FAN,GU_TEXTURE_32BITF|GU_COLOR_8888|GU_VERTEX_32BITF|GU_TRANSFORM_2D,4,NULL,v);
 }
 static void pspInit(Renderer *renderer, DataWin *dataWin) {
     renderer->dataWin = dataWin;
@@ -121,7 +130,7 @@ static void pspBeginFrame(Renderer *renderer, int32_t gameW, int32_t gameH, int3
     sceGuClearColor(GU_RGBA(0,0,0,255));
     sceGuClearDepth(0);
     sceGuClear(GU_COLOR_BUFFER_BIT | GU_DEPTH_BUFFER_BIT);
-    setOrtho(0,(float)gameW,0,(float)gameH,0,0,PSP_W,PSP_H);
+    setViewTransform(0,0,(float)gameW,(float)gameH,0,0,PSP_W,PSP_H);
     renderer->CPortX=0; renderer->CPortY=0; renderer->CPortW=PSP_W; renderer->CPortH=PSP_H;
 }
 static void pspEndFrameInit(Renderer *renderer){(void)renderer;}
@@ -129,15 +138,15 @@ static void pspEndFrameEnd(Renderer *renderer){(void)renderer;releaseLargePageCa
 static void pspBeginView(Renderer *renderer,int32_t viewX,int32_t viewY,int32_t viewW,int32_t viewH,int32_t portX,int32_t portY,int32_t portW,int32_t portH,float viewAngle){
     (void)viewAngle;
     renderer->CPortX=portX;renderer->CPortY=portY;renderer->CPortW=portW;renderer->CPortH=portH;
-    setOrtho((float)viewX,(float)(viewX+viewW),(float)viewY,(float)(viewY+viewH),portX,portY,portW,portH);
+    setViewTransform((float)viewX,(float)viewY,(float)viewW,(float)viewH,portX,portY,portW,portH);
 }
 static void pspEndView(Renderer *renderer){(void)renderer;}
 static void pspBeginGUI(Renderer *renderer,int32_t guiW,int32_t guiH,int32_t portX,int32_t portY,int32_t portW,int32_t portH,int32_t targetSurfaceId){
     (void)targetSurfaceId; renderer->CPortX=portX;renderer->CPortY=portY;renderer->CPortW=portW;renderer->CPortH=portH;
-    setOrtho(0,(float)guiW,0,(float)guiH,portX,portY,portW,portH);
+    setViewTransform(0,0,(float)guiW,(float)guiH,portX,portY,portW,portH);
 }
 static void pspSetGuiProjection(Renderer *renderer,int32_t guiW,int32_t guiH,int32_t portW,int32_t portH,bool renderingToUserSurface){
-    (void)renderer;(void)renderingToUserSurface;setOrtho(0,(float)guiW,0,(float)guiH,0,0,portW,portH);
+    (void)renderer;(void)renderingToUserSurface;setViewTransform(0,0,(float)guiW,(float)guiH,0,0,portW,portH);
 }
 static void pspEndGUI(Renderer *renderer){(void)renderer;}
 
@@ -204,8 +213,10 @@ static void pspDrawTiledPart(Renderer *renderer,int32_t tpagIndex,int32_t srcX,i
     (void)t;
 }
 static void pspDrawRectangle(Renderer *renderer,float x1,float y1,float x2,float y2,uint32_t color,float alpha,bool outline){
-    (void)renderer;uint32_t c=bgrToGu(color,alpha);PSPVertex *v=(PSPVertex*)sceGuGetMemory(4*sizeof(PSPVertex));
-    v[0]=(PSPVertex){0,0,c,x1,y1,0};v[1]=(PSPVertex){0,0,c,x2,y1,0};v[2]=(PSPVertex){0,0,c,x2,y2,0};v[3]=(PSPVertex){0,0,c,x1,y2,0};
+    (void)renderer; uint32_t c=bgrToGu(color,alpha); PSPVertex *v=(PSPVertex*)sceGuGetMemory(4*sizeof(PSPVertex));
+    float tx1=(x1-g_viewX)*g_scaleX+g_offX, ty1=(y1-g_viewY)*g_scaleY+g_offY;
+    float tx2=(x2-g_viewX)*g_scaleX+g_offX, ty2=(y2-g_viewY)*g_scaleY+g_offY;
+    v[0]=(PSPVertex){0,0,c,tx1,ty1,0};v[1]=(PSPVertex){0,0,c,tx2,ty1,0};v[2]=(PSPVertex){0,0,c,tx2,ty2,0};v[3]=(PSPVertex){0,0,c,tx1,ty2,0};
     sceGuDisable(GU_TEXTURE_2D);sceGuDrawArray(outline?GU_LINE_STRIP:GU_TRIANGLE_FAN,GU_COLOR_8888|GU_VERTEX_32BITF|GU_TRANSFORM_2D,4,NULL,v);sceGuEnable(GU_TEXTURE_2D);
 }
 static void pspClearScreen(Renderer *renderer,uint32_t color,float alpha){(void)renderer;sceGuClearColor(bgrToGu(color,alpha));sceGuClear(GU_COLOR_BUFFER_BIT);}
