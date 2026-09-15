@@ -123,6 +123,15 @@ static void pspBeginFrame(Renderer *renderer, int32_t gameW, int32_t gameH, int3
     sceGuClear(GU_COLOR_BUFFER_BIT | GU_DEPTH_BUFFER_BIT);
     setOrtho(0,(float)gameW,0,(float)gameH,0,0,PSP_W,PSP_H);
     renderer->CPortX=0; renderer->CPortY=0; renderer->CPortW=PSP_W; renderer->CPortH=PSP_H;
+/* Diagnostic: prove that the PSP GU can rasterize a primitive independently
+ * of the GameMaker room/texture pipeline. Remove after renderer path is proven. */
+sceGuDisable(GU_TEXTURE_2D);
+PSPVertex *dv=(PSPVertex*)sceGuGetMemory(4*sizeof(PSPVertex));
+unsigned int dc=GU_RGBA(255,0,255,255);
+dv[0]=(PSPVertex){0,0,dc,8,8,0}; dv[1]=(PSPVertex){0,0,dc,48,8,0};
+dv[2]=(PSPVertex){0,0,dc,48,48,0}; dv[3]=(PSPVertex){0,0,dc,8,48,0};
+sceGuDrawArray(GU_TRIANGLE_FAN,GU_COLOR_8888|GU_VERTEX_32BITF|GU_TRANSFORM_2D,4,NULL,dv);
+sceGuEnable(GU_TEXTURE_2D);
 }
 static void pspEndFrameInit(Renderer *renderer){(void)renderer;}
 static void pspEndFrameEnd(Renderer *renderer){(void)renderer;releaseLargePageCache();}
