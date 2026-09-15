@@ -39,6 +39,24 @@ for(;;){
     runner->renderer->vtable->endFrameEnd(runner->renderer);
     Runner_drawGUI(runner,480,272,gameW,gameH);
     RunnerKeyboard_beginFrame(runner->keyboard);
+
+    /* Isolated framebuffer/GU diagnostic: draw AFTER the complete Runner frame.
+       If this is visible, the PSP display/swap path is healthy and the remaining
+       problem is strictly in the Butterscotch rendering path. */
+    sceGuDisable(GU_TEXTURE_2D);
+    sceGuDisable(GU_BLEND);
+    sceGuViewport(2048,2048,480,272);
+    sceGuScissor(0,0,480,272);
+    sceGumMatrixMode(GU_PROJECTION); sceGumLoadIdentity(); sceGumOrtho(0,480,272,0,-1,1);
+    sceGumMatrixMode(GU_VIEW); sceGumLoadIdentity();
+    sceGumMatrixMode(GU_MODEL); sceGumLoadIdentity();
+    PSPVertex *dv=(PSPVertex*)sceGuGetMemory(4*sizeof(PSPVertex));
+    unsigned int dc=GU_RGBA(255,0,255,255);
+    dv[0]=(PSPVertex){0,0,dc,8,8,0}; dv[1]=(PSPVertex){0,0,dc,48,8,0};
+    dv[2]=(PSPVertex){0,0,dc,48,48,0}; dv[3]=(PSPVertex){0,0,dc,8,48,0};
+    sceGuDrawArray(GU_TRIANGLE_FAN,GU_COLOR_8888|GU_VERTEX_32BITF|GU_TRANSFORM_2D,4,NULL,dv);
+    sceGuEnable(GU_BLEND);
+    sceGuEnable(GU_TEXTURE_2D);
     sceGuFinish(); sceGuSync(GU_SYNC_FINISH,GU_SYNC_WHAT_DONE);
     sceDisplayWaitVblankStart(); sceGuSwapBuffers();
 }
