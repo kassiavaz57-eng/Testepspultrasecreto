@@ -13,7 +13,7 @@ old='if(ENABLE_NOOP_RENDERER AND NOT BACKEND STREQUAL "noop")'
 if old not in s: raise SystemExit('ERROR: CMake noop-renderer guard changed upstream')
 s=s.replace(old,'if(ENABLE_NOOP_RENDERER AND NOT BACKEND STREQUAL "noop" AND NOT PLATFORM STREQUAL "psp")',1)
 block='''elseif(PLATFORM STREQUAL "psp")
-    add_compile_definitions(PLATFORM_PSP USE_FLOAT_REALS NO_RVALUE_INT64)
+    set(BACKEND "noop")\n    add_compile_definitions(PLATFORM_PSP USE_FLOAT_REALS NO_RVALUE_INT64)
     set(BACKEND "noop" CACHE STRING "Desktop platform backend" FORCE)
     set(BACKEND_LIBRARIES "")
     set(AUDIO_BACKEND "none" CACHE STRING "Audio backend" FORCE)
