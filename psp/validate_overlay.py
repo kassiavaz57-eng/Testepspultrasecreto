@@ -6,7 +6,7 @@ for p in [r/'CMakeLists.txt',r/'src/psp/psp_main.c',r/'src/psp/psp_file_system.c
 s=(r/'CMakeLists.txt').read_text(); m=(r/'src/psp/psp_main.c').read_text(); f=(r/'src/psp/psp_file_system.c').read_text()
 for x in ['PLATFORM STREQUAL "psp"','PLATFORM_PSP','USE_FLOAT_REALS','NO_RVALUE_INT64']:
     if x not in s: raise SystemExit('ERROR: incomplete PSP CMake patch: '+x)
-for x in ['DataWin_parse','Runner_create','Runner_initFirstRoom','Runner_step']:
+for x in ['load_data_win','Runner_create','Runner_initFirstRoom','Runner_step']:
     if x not in m: raise SystemExit('ERROR: missing core integration: '+x)
 if 'FileSystemVtable' not in f or 'listdir' not in f: raise SystemExit('ERROR: incomplete filesystem backend')
 print('PSP overlay validation passed.')
