@@ -160,6 +160,33 @@ static void pspDrawSprite(Renderer *renderer,int32_t tpagIndex,float x,float y,f
     TexturePageItem *t=&renderer->dataWin->tpag.items[tpagIndex];
     pspDrawSpritePart(renderer,tpagIndex,0,0,t->sourceWidth,t->sourceHeight,x-originX*xscale,y-originY*yscale,xscale,yscale,angleDeg,x,y,color,alpha);
 }
+
+static void pspDrawSpriteTiled(Renderer *renderer,int32_t tpagIndex,float originX,float originY,float x,float y,float xscale,float yscale,bool tileX,bool tileY,float roomW,float roomH,uint32_t color,float alpha){
+    (void)originX; (void)originY;
+    if(!renderer||!renderer->dataWin||tpagIndex<0||(uint32_t)tpagIndex>=renderer->dataWin->tpag.count)return;
+    TexturePageItem *t=&renderer->dataWin->tpag.items[tpagIndex];
+    if(t->sourceWidth<=0||t->sourceHeight<=0||xscale==0.0f||yscale==0.0f)return;
+    float tileW=(float)t->sourceWidth*xscale, tileH=(float)t->sourceHeight*yscale;
+    int maxY=tileY?((int)ceilf(roomH/fabsf(tileH))+1):1;
+    int maxX=tileX?((int)ceilf(roomW/fabsf(tileW))+1):1;
+    for(int iy=0;iy<maxY;iy++){
+        float dy=y+(float)iy*tileH;
+        float remainH=tileY?(roomH-(float)iy*fabsf(tileH)):(float)t->sourceHeight;
+        if(tileY&&remainH<=0.0f)break;
+        int sh=tileY&&remainH<(float)t->sourceHeight?(int)floorf(remainH/fabsf(yscale)):t->sourceHeight;
+        if(sh<=0)break;
+        for(int ix=0;ix<maxX;ix++){
+            float dx=x+(float)ix*tileW;
+            float remainW=tileX?(roomW-(float)ix*fabsf(tileW)):(float)t->sourceWidth;
+            if(tileX&&remainW<=0.0f)break;
+            int sw=tileX&&remainW<(float)t->sourceWidth?(int)floorf(remainW/fabsf(xscale)):t->sourceWidth;
+            if(sw<=0)break;
+            pspDrawSpritePart(renderer,tpagIndex,0,0,sw,sh,dx,dy,xscale,yscale,0.0f,dx,dy,color,alpha);
+            if(!tileX)break;
+        }
+        if(!tileY)break;
+    }
+}
 static void pspDrawRectangle(Renderer *renderer,float x1,float y1,float x2,float y2,uint32_t color,float alpha,bool outline){
     (void)renderer;uint32_t c=bgrToGu(color,alpha);PSPVertex *v=(PSPVertex*)sceGuGetMemory(4*sizeof(PSPVertex));
     v[0]=(PSPVertex){0,0,c,x1,y1,0};v[1]=(PSPVertex){0,0,c,x2,y1,0};v[2]=(PSPVertex){0,0,c,x2,y2,0};v[3]=(PSPVertex){0,0,c,x1,y2,0};
@@ -177,7 +204,7 @@ Renderer *PSPRenderer_create(void){
     g_pspVtable->beginView=pspBeginView;g_pspVtable->endView=pspEndView;g_pspVtable->beginGUI=pspBeginGUI;
     g_pspVtable->setGuiProjection=pspSetGuiProjection;g_pspVtable->endGUI=pspEndGUI;
     g_pspVtable->drawSprite=pspDrawSprite;g_pspVtable->drawSpritePart=pspDrawSpritePart;
-    g_pspVtable->drawSpritePartColor=pspDrawSpritePartColor;g_pspVtable->drawRectangle=pspDrawRectangle;
+    g_pspVtable->drawSpritePartColor=pspDrawSpritePartColor;g_pspVtable->drawSpriteTiled=pspDrawSpriteTiled;g_pspVtable->drawRectangle=pspDrawRectangle;
     g_pspVtable->clearScreen=pspClearScreen;
     renderer->vtable=g_pspVtable; return renderer;
 }
