@@ -1,5 +1,6 @@
 #include "psp_file_system.h"
 #include "utils.h"
+#include "stb_ds.h"
 #include <dirent.h>
 #include <errno.h>
 #include <stdio.h>
