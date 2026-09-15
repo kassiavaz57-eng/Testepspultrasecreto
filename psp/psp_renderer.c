@@ -67,7 +67,6 @@ static bool uploadRect(DataWin *dw,int pageId,int sx,int sy,int sw,int sh,int *t
  sceGuTexFunc(GU_TFX_MODULATE,GU_TCC_RGBA); sceGuTexFilter(GU_NEAREST,GU_NEAREST); sceGuTexFlush();
  *twOut=tw;*thOut=th;return true;
 }
-static void releaseLargePageCache(void){if(g_cachedPixels&&g_cachedPixelsSize>(size_t)8*1024*1024)cacheClear();}
 static void drawQuad(float x0,float y0,float x1,float y1,float x2,float y2,float x3,float y3,float u0,float v0,float u1,float v1,uint32_t c0,uint32_t c1,uint32_t c2,uint32_t c3){
     float xs[4]={x0,x1,x2,x3},ys[4]={y0,y1,y2,y3};
     PSPVertex *v=(PSPVertex*)sceGuGetMemory(4*sizeof(PSPVertex));
@@ -142,7 +141,7 @@ static void pspBeginFrame(Renderer *renderer, int32_t gameW, int32_t gameH, int3
     renderer->CPortX=0; renderer->CPortY=0; renderer->CPortW=PSP_W; renderer->CPortH=PSP_H;
 }
 static void pspEndFrameInit(Renderer *renderer){(void)renderer;}
-static void pspEndFrameEnd(Renderer *renderer){(void)renderer;releaseLargePageCache();pspDiagReport();pspDiagFileReport();}
+static void pspEndFrameEnd(Renderer *renderer){(void)renderer;pspDiagReport();pspDiagFileReport();}
 static void pspBeginView(Renderer *renderer,int32_t viewX,int32_t viewY,int32_t viewW,int32_t viewH,int32_t portX,int32_t portY,int32_t portW,int32_t portH,float viewAngle){
     (void)viewAngle;
     renderer->CPortX=portX;renderer->CPortY=portY;renderer->CPortW=portW;renderer->CPortH=portH;
