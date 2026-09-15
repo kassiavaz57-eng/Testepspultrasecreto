@@ -24,12 +24,13 @@ void platformLog(const logType type,const char*fmt,va_list va){if(type==LOG_TYPE
 static bool load_data_win(const char*path,DataWin**out){DataWinParserOptions o={0};o.parseGen8=true;o.parseOptn=true;o.parseLang=true;o.parseExtn=true;o.parseSond=true;o.parseAgrp=true;o.parseSprt=true;o.parseBgnd=true;o.parsePath=true;o.parseScpt=true;o.parseGlob=true;o.parseShdr=true;o.parseFont=true;o.parseTmln=true;o.parseObjt=true;o.parseRoom=true;o.parseTpag=true;o.parseCode=true;o.parseVari=true;o.parseFunc=true;o.parseStrg=true;o.parseTxtr=true;o.parseAudo=false;o.skipLoadingPreciseMasksForNonPreciseSprites=true;o.lazyLoadRooms=true;o.lazyLoadTextures=true;o.lazyLoadAudio=true;o.loadType=DATAWINLOADTYPE_LOAD_PER_CHUNK;*out=DataWin_parse(path,o);return *out!=NULL;}
 int main(void){
     setup_callbacks();
-    pspInputInit();
-    pspRendererInit();
-    FileSystem fs; pspFileSystemInit(&fs);
+    Renderer *renderer = PSPRenderer_create();
+    FileSystem *fs = PspFileSystem_create(".");
+    AudioSystem *audio = (AudioSystem*)NoopAudioSystem_create();
     DataWin *d=NULL;
     if(!load_data_win("data.win",&d)) sceKernelExitGame();
-    Runner *runner=Runner_create(d, &fs, pspRendererGet(), pspInputGet());
+    VMContext *vm = VM_create(d);
+    Runner *runner=Runner_create(d, vm, renderer, fs, audio, 0);
     if(!runner) sceKernelExitGame();
     Runner_initFirstRoom(runner);
     for(;;){
@@ -44,6 +45,7 @@ int main(void){
     Runner_drawPost(runner,480,272);
     runner->renderer->vtable->endFrameEnd(runner->renderer);
     Runner_drawGUI(runner,480,272,gameW,gameH);
+    sceCtrlReadBufferPositive(NULL,0);
     RunnerKeyboard_beginFrame(runner->keyboard);
     sceGuFinish(); sceGuSync(GU_SYNC_FINISH,GU_SYNC_WHAT_DONE);
     sceDisplayWaitVblankStart(); sceGuSwapBuffers();
