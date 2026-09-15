@@ -49,6 +49,8 @@ int main(void){
     RunnerKeyboard_beginFrame(runner->keyboard);
     sceGuFinish(); sceGuSync(GU_SYNC_FINISH,GU_SYNC_WHAT_DONE);
     sceDisplayWaitVblankStart(); sceGuSwapBuffers();
+    // Match the shared runner loop: consume a queued room change after the frame.
+    Runner_handlePendingRoomChange(runner);
 }
 sceKernelExitGame();
 return 0;
