@@ -32,7 +32,7 @@ static int nextPow2(int v){int n=1;while(n<v&&n<PSP_TEX_MAX)n<<=1;return n;}
 static void cacheClear(void){free(g_cachedPixels);g_cachedPixels=NULL;g_cachedPixelsSize=0;g_cachedPage=-1;g_cachedW=g_cachedH=0;}
 static uint32_t bgrToGu(uint32_t c,float alpha){unsigned int a=(unsigned int)(alpha*255.0f);if(a>255)a=255;return GU_RGBA(BGR_R(c),BGR_G(c),BGR_B(c),a);}
 static void setOrtho(float l,float r,float t,float b,int px,int py,int pw,int ph){
- sceGuViewport(2048+px+pw/2,2048+py+ph/2,pw,ph); sceGuScissor(px,py,px+pw,py+ph);
+ sceGuViewport(2048,2048,pw,ph); sceGuScissor(px,py,px+pw,py+ph);
  sceGumMatrixMode(GU_PROJECTION); sceGumLoadIdentity(); sceGumOrtho(l,r,b,t,-1.0f,1.0f);
  sceGumMatrixMode(GU_VIEW); sceGumLoadIdentity(); sceGumMatrixMode(GU_MODEL); sceGumLoadIdentity();
 }
@@ -123,15 +123,6 @@ static void pspBeginFrame(Renderer *renderer, int32_t gameW, int32_t gameH, int3
     sceGuClear(GU_COLOR_BUFFER_BIT | GU_DEPTH_BUFFER_BIT);
     setOrtho(0,(float)gameW,0,(float)gameH,0,0,PSP_W,PSP_H);
     renderer->CPortX=0; renderer->CPortY=0; renderer->CPortW=PSP_W; renderer->CPortH=PSP_H;
-/* Diagnostic: prove that the PSP GU can rasterize a primitive independently
- * of the GameMaker room/texture pipeline. Remove after renderer path is proven. */
-sceGuDisable(GU_TEXTURE_2D);
-PSPVertex *dv=(PSPVertex*)sceGuGetMemory(4*sizeof(PSPVertex));
-unsigned int dc=GU_RGBA(255,0,255,255);
-dv[0]=(PSPVertex){0,0,dc,8,8,0}; dv[1]=(PSPVertex){0,0,dc,48,8,0};
-dv[2]=(PSPVertex){0,0,dc,48,48,0}; dv[3]=(PSPVertex){0,0,dc,8,48,0};
-sceGuDrawArray(GU_TRIANGLE_FAN,GU_COLOR_8888|GU_VERTEX_32BITF|GU_TRANSFORM_2D,4,NULL,dv);
-sceGuEnable(GU_TEXTURE_2D);
 }
 static void pspEndFrameInit(Renderer *renderer){(void)renderer;}
 static void pspEndFrameEnd(Renderer *renderer){(void)renderer;releaseLargePageCache();}
@@ -196,6 +187,22 @@ static void pspDrawSpriteTiled(Renderer *renderer,int32_t tpagIndex,float origin
         if(!tileY)break;
     }
 }
+static void pspDrawTiledPart(Renderer *renderer,int32_t tpagIndex,int32_t srcX,int32_t srcY,int32_t srcW,int32_t srcH,float dstX,float dstY,float dstW,float dstH,uint32_t color,float alpha){
+    if(!renderer||!renderer->dataWin||tpagIndex<0||(uint32_t)tpagIndex>=renderer->dataWin->tpag.count||srcW<=0||srcH<=0||dstW<=0.0f||dstH<=0.0f)return;
+    TexturePageItem *t=&renderer->dataWin->tpag.items[tpagIndex];
+    /* drawTiledPart coordinates are relative to the TPAG source rectangle. */
+    int tileW=srcW,tileH=srcH;
+    for(float y=dstY;y<dstY+dstH-0.001f;y+=(float)tileH){
+        int h=(int)fminf((float)tileH,dstY+dstH-y);
+        if(h<=0)break;
+        for(float x=dstX;x<dstX+dstW-0.001f;x+=(float)tileW){
+            int w=(int)fminf((float)tileW,dstX+dstW-x);
+            if(w<=0)break;
+            pspDrawSpritePart(renderer,tpagIndex,srcX,srcY,w,h,x,y,1.0f,1.0f,0.0f,x,y,color,alpha);
+        }
+    }
+    (void)t;
+}
 static void pspDrawRectangle(Renderer *renderer,float x1,float y1,float x2,float y2,uint32_t color,float alpha,bool outline){
     (void)renderer;uint32_t c=bgrToGu(color,alpha);PSPVertex *v=(PSPVertex*)sceGuGetMemory(4*sizeof(PSPVertex));
     v[0]=(PSPVertex){0,0,c,x1,y1,0};v[1]=(PSPVertex){0,0,c,x2,y1,0};v[2]=(PSPVertex){0,0,c,x2,y2,0};v[3]=(PSPVertex){0,0,c,x1,y2,0};
@@ -213,7 +220,7 @@ Renderer *PSPRenderer_create(void){
     g_pspVtable->beginView=pspBeginView;g_pspVtable->endView=pspEndView;g_pspVtable->beginGUI=pspBeginGUI;
     g_pspVtable->setGuiProjection=pspSetGuiProjection;g_pspVtable->endGUI=pspEndGUI;
     g_pspVtable->drawSprite=pspDrawSprite;g_pspVtable->drawSpritePart=pspDrawSpritePart;
-    g_pspVtable->drawSpritePartColor=pspDrawSpritePartColor;g_pspVtable->drawSpriteTiled=pspDrawSpriteTiled;g_pspVtable->drawRectangle=pspDrawRectangle;
+    g_pspVtable->drawSpritePartColor=pspDrawSpritePartColor;g_pspVtable->drawSpriteTiled=pspDrawSpriteTiled;g_pspVtable->drawTiledPart=pspDrawTiledPart;g_pspVtable->drawRectangle=pspDrawRectangle;
     g_pspVtable->clearScreen=pspClearScreen;
     renderer->vtable=g_pspVtable; return renderer;
 }
