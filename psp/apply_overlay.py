@@ -16,6 +16,10 @@ s=s.replace(old,'if(ENABLE_NOOP_RENDERER AND NOT BACKEND STREQUAL "noop" AND NOT
 old_glad='if(NOT PLATFORM STREQUAL "vita" AND NOT PLATFORM STREQUAL "switch")\n        # GLAD'
 if old_glad not in s: raise SystemExit('ERROR: GLAD CMake block changed upstream')
 s=s.replace(old_glad,'if(NOT PLATFORM STREQUAL "vita" AND NOT PLATFORM STREQUAL "switch" AND NOT PLATFORM STREQUAL "psp")\n        # GLAD',1)
+# PSP uses the native/no-op renderer path; host GL common sources require glad/OpenGL headers.
+old_gl_sources='file(GLOB GL_SOURCES src/image/*.c src/gl_common/*.c)'
+if old_gl_sources not in s: raise SystemExit('ERROR: GL source glob changed upstream')
+s=s.replace(old_gl_sources,'if(PLATFORM STREQUAL "psp")\\n        file(GLOB GL_SOURCES src/image/*.c)\\n    else()\\n        file(GLOB GL_SOURCES src/image/*.c src/gl_common/*.c)\\n    endif()',1)
 # Upstream declares BACKEND with an empty cache value after the platform preamble.
 # Override that declaration for PSP after it occurs, so target_sources() sees "noop".
 anchor='set(BACKEND "" CACHE STRING "Desktop platform backend")'
