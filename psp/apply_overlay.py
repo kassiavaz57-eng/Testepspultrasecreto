@@ -1,12 +1,3 @@
-from pathlib import Path
-import shutil,sys
-root=Path(sys.argv[1]).resolve(); ov=Path(__file__).resolve().parent
-cm=root/'CMakeLists.txt'
-for p in (cm,root/'src/runner.h',root/'src/file_system.h',root/'src/data_win.h'):
-    if not p.is_file(): raise SystemExit(f'ERROR: expected Butterscotch file missing: {p}')
-s=cm.read_text()
-if 'PLATFORM STREQUAL "psp"' in s: raise SystemExit('ERROR: PSP overlay already applied')
-old='if(PLATFORM STREQUAL "cli" OR PLATFORM STREQUAL "vita" OR PLATFORM STREQUAL "switch")'
 if old not in s: raise SystemExit('ERROR: CMake loop.c block changed upstream')
 s=s.replace(old,'if(PLATFORM STREQUAL "cli" OR PLATFORM STREQUAL "vita" OR PLATFORM STREQUAL "switch" OR PLATFORM STREQUAL "psp")',1)
 old='if(ENABLE_NOOP_RENDERER AND NOT BACKEND STREQUAL "noop")'
@@ -19,7 +10,7 @@ s=s.replace(old_glad,'if(NOT PLATFORM STREQUAL "vita" AND NOT PLATFORM STREQUAL 
 # PSP uses the native/no-op renderer path; host GL common sources require glad/OpenGL headers.
 old_gl_sources='file(GLOB GL_SOURCES src/image/*.c src/gl_common/*.c)'
 if old_gl_sources not in s: raise SystemExit('ERROR: GL source glob changed upstream')
-s=s.replace(old_gl_sources,'if(PLATFORM STREQUAL "psp")\\n        file(GLOB GL_SOURCES src/image/*.c)\\n    else()\\n        file(GLOB GL_SOURCES src/image/*.c src/gl_common/*.c)\\n    endif()',1)
+s=s.replace(old_gl_sources,'if(PLATFORM STREQUAL "psp")\n        file(GLOB GL_SOURCES src/image/*.c)\n    else()\n        file(GLOB GL_SOURCES src/image/*.c src/gl_common/*.c)\n    endif()',1)
 # Upstream declares BACKEND with an empty cache value after the platform preamble.
 # Override that declaration for PSP after it occurs, so target_sources() sees "noop".
 anchor='set(BACKEND "" CACHE STRING "Desktop platform backend")'
