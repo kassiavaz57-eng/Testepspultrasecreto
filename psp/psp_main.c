@@ -3,6 +3,7 @@
 #include <pspgu.h>
 #include <pspdisplay.h>
 #include <psprtc.h>
+#include <psppower.h>
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdint.h>
@@ -25,6 +26,10 @@ void platformLog(const logType type,const char*fmt,va_list va){if(type==LOG_TYPE
 static bool load_data_win(const char*path,DataWin**out){DataWinParserOptions o={0};o.parseGen8=true;o.parseOptn=true;o.parseLang=true;o.parseExtn=true;o.parseSond=true;o.parseAgrp=true;o.parseSprt=true;o.parseBgnd=true;o.parsePath=true;o.parseScpt=true;o.parseGlob=true;o.parseShdr=true;o.parseFont=true;o.parseTmln=true;o.parseObjt=true;o.parseRoom=true;o.parseTpag=true;o.parseCode=true;o.parseVari=true;o.parseFunc=true;o.parseStrg=true;o.parseTxtr=true;o.parseAudo=false;o.skipLoadingPreciseMasksForNonPreciseSprites=true;o.lazyLoadRooms=true;o.lazyLoadTextures=true;o.lazyLoadAudio=true;o.loadType=DATAWINLOADTYPE_LOAD_PER_CHUNK;*out=DataWin_parse(path,o);return *out!=NULL;}
 int main(void){
     setup_callbacks();
+    // Use the PSP's full supported 333 MHz CPU / 166 MHz bus clock. The current
+    // renderer is CPU-bound (PNG decode + texture uploads), so leaving the PSP
+    // at its lower default clock needlessly throttles the port.
+    scePowerSetClockFrequency(333, 333, 166);
     Renderer *renderer = PSPRenderer_create();
     FileSystem *fs = PspFileSystem_create(".");
     AudioSystem *audio = (AudioSystem*)NoopAudioSystem_create();
