@@ -15,6 +15,7 @@ s=s.replace(old,'if(ENABLE_NOOP_RENDERER AND NOT BACKEND STREQUAL "noop" AND NOT
 block='''elseif(PLATFORM STREQUAL "psp")
     add_compile_definitions(PLATFORM_PSP USE_FLOAT_REALS NO_RVALUE_INT64)
     set(BACKEND "noop" CACHE STRING "Desktop platform backend" FORCE)
+    set(BACKEND_LIBRARIES "")
     set(AUDIO_BACKEND "none" CACHE STRING "Audio backend" FORCE)
     set(ENABLE_NOOP_RENDERER ON CACHE BOOL "Enable the no-op renderer" FORCE)
     set(ENABLE_LEGACY_GL OFF CACHE BOOL "Enable the legacy OpenGL renderer" FORCE)
