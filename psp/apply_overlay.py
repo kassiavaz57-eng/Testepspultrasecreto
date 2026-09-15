@@ -103,6 +103,20 @@ elseif(PLATFORM STREQUAL "ps2")''',
 'PSP system libraries'
 )
 
+# PSP libc does not provide POSIX sigaction. Disable only the optional
+# crash-signal handler in the shared loop; the VM loop itself remains intact.
+loop = UPSTREAM / "src" / "loop.c"
+loop_s = loop.read_text()
+replace_loop = "#if !defined(_WIN32) && !defined(PLATFORM_VITA) && !defined(__SWITCH__) && !defined(__wasi__)"
+if replace_loop not in loop_s:
+    raise SystemExit("ERROR: loop.c crash-handler guard changed upstream")
+loop_s = loop_s.replace(
+    replace_loop,
+    "#if !defined(_WIN32) && !defined(PLATFORM_VITA) && !defined(PLATFORM_PSP) && !defined(__SWITCH__) && !defined(__wasi__)",
+    1
+)
+loop.write_text(loop_s)
+
 CM.write_text(s)
 
 PSP_SRC.mkdir(parents=True, exist_ok=True)
