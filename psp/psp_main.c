@@ -42,6 +42,8 @@ int main(void){
     sceCtrlSetSamplingCycle(0);
     sceCtrlSetSamplingMode(PSP_CTRL_MODE_ANALOG);
     uint64_t lastFrameUs = sceKernelGetSystemTimeWide();
+    uint64_t lastDiagUs = lastFrameUs;
+    uint64_t framesSinceDiag = 0;
     for(;;){
     uint64_t frameStartUs = sceKernelGetSystemTimeWide();
     uint64_t elapsedUs = frameStartUs - lastFrameUs;
@@ -71,6 +73,27 @@ int main(void){
     sceGuSwapBuffers();
     // Match the shared runner loop: consume a queued room change after the frame.
     Runner_handlePendingRoomChange(runner);
+    framesSinceDiag++;
+    uint64_t nowDiagUs = sceKernelGetSystemTimeWide();
+    if (nowDiagUs - lastDiagUs >= 1000000ULL) {
+        FILE *diag = fopen("ms0:/PSP/GAME/BUTTERSCOTCH/psp_diag.txt", "a");
+        if (diag) {
+            GMLCamera *cam = Runner_getCameraForView(runner, 0);
+            fprintf(diag, "PSP_FRAME frames=%llu room=%d views=%d roomSize=%dx%d camera=%dx%d fps=%0.2f cpu=%d\\n",
+                    (unsigned long long)framesSinceDiag,
+                    runner->currentRoomIndex,
+                    runner->viewsEnabled ? 1 : 0,
+                    runner->currentRoom ? runner->currentRoom->width : 0,
+                    runner->currentRoom ? runner->currentRoom->height : 0,
+                    cam ? cam->viewWidth : 0,
+                    cam ? cam->viewHeight : 0,
+                    (double)framesSinceDiag / ((double)(nowDiagUs - lastDiagUs) / 1000000.0),
+                    scePowerGetCpuClockFrequency());
+            fclose(diag);
+        }
+        framesSinceDiag = 0;
+        lastDiagUs = nowDiagUs;
+    }
 }
 sceKernelExitGame();
 return 0;
