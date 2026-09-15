@@ -61,6 +61,9 @@ static void drawQuad(float x0,float y0,float x1,float y1,float x2,float y2,float
  v[0]=(PSPVertex){u0,v0,c0,x0,y0,0};v[1]=(PSPVertex){u1,v0,c1,x1,y1,0};v[2]=(PSPVertex){u1,v1,c2,x2,y2,0};v[3]=(PSPVertex){u0,v1,c3,x3,y3,0};
  sceGuDrawArray(GU_TRIANGLE_FAN,GU_TEXTURE_32BITF|GU_COLOR_8888|GU_VERTEX_32BITF|GU_TRANSFORM_2D,4,NULL,v);
 }
+static void pspInit(Renderer *renderer, DataWin *dataWin) {
+    renderer->dataWin = dataWin;
+    Matrix4f world;
     Matrix4f_identity(&world);
     renderer->gmlMatrices[MATRIX_WORLD] = world;
     renderer->drawColor = 0xFFFFFF;
@@ -95,6 +98,7 @@ static void drawQuad(float x0,float y0,float x1,float y1,float x2,float y2,float
     logInfo("PSP GU renderer initialized\n");
 }
 
+
 static void pspDestroy(Renderer *renderer) {
     cacheClear();
     if (g_guReady) {
@@ -105,8 +109,7 @@ static void pspDestroy(Renderer *renderer) {
     }
     RendererVtable *vt = renderer->vtable;
     renderer->vtable = g_baseVtable;
-    if (g_baseVtable && g_baseVtable->destroy)
-        g_baseVtable->destroy(renderer);
+    if (g_baseVtable && g_baseVtable->destroy) g_baseVtable->destroy(renderer);
     free(vt);
     g_pspVtable = NULL;
     g_baseVtable = NULL;
@@ -115,46 +118,66 @@ static void pspDestroy(Renderer *renderer) {
 static void pspBeginFrame(Renderer *renderer, int32_t gameW, int32_t gameH, int32_t windowW, int32_t windowH) {
     (void)windowW; (void)windowH;
     sceGuStart(GU_DIRECT, g_list);
-    sceGuClearColor(GU_RGBA(0, 0, 0, 255));
+    sceGuClearColor(GU_RGBA(0,0,0,255));
     sceGuClearDepth(0);
     sceGuClear(GU_COLOR_BUFFER_BIT | GU_DEPTH_BUFFER_BIT);
-    setOrtho(0, (float)gameW, 0, (float)gameH, 0, 0, PSP_W, PSP_H);
-    renderer->CPortX = 0;
-    renderer->CPortY = 0;
-    renderer->CPortW = PSP_W;
-    renderer->CPortH = PSP_H;
+    setOrtho(0,(float)gameW,0,(float)gameH,0,0,PSP_W,PSP_H);
+    renderer->CPortX=0; renderer->CPortY=0; renderer->CPortW=PSP_W; renderer->CPortH=PSP_H;
 }
-
-static void pspEndFrameInit(Renderer *renderer) {
-    (void)renderer;
-}
-
-static void pspEndFrameEnd(Renderer *renderer) {
-    (void)renderer;
-    releaseLargePageCache();
-}
-
-static void pspBeginView(Renderer *renderer, int32_t viewX, int32_t viewY, int32_t viewW, int32_t viewH, int32_t portX, int32_t portY, int32_t portW, int32_t portH, float viewAngle) {
+static void pspEndFrameInit(Renderer *renderer){(void)renderer;}
+static void pspEndFrameEnd(Renderer *renderer){(void)renderer;releaseLargePageCache();}
+static void pspBeginView(Renderer *renderer,int32_t viewX,int32_t viewY,int32_t viewW,int32_t viewH,int32_t portX,int32_t portY,int32_t portW,int32_t portH,float viewAngle){
     (void)viewAngle;
-    renderer->CPortX = portX; renderer->CPortY = portY; renderer->CPortW = portW; renderer->CPortH = portH;
-    setOrtho((float)viewX, (float)(viewX + viewW), (float)viewY, (float)(viewY + viewH), portX, portY, portW, portH);
+    renderer->CPortX=portX;renderer->CPortY=portY;renderer->CPortW=portW;renderer->CPortH=portH;
+    setOrtho((float)viewX,(float)(viewX+viewW),(float)viewY,(float)(viewY+viewH),portX,portY,portW,portH);
 }
-
-static void pspEndView(Renderer *renderer) { (void)renderer; }
-
-static void pspBeginGUI(Renderer *renderer, int32_t guiW, int32_t guiH, int32_t portX, int32_t portY, int32_t portW, int32_t portH, int32_t targetSurfaceId) {
-    (void)targetSurfaceId;
-    renderer->CPortX = portX; renderer->CPortY = portY; renderer->CPortW = portW; renderer->CPortH = portH;
-    setOrtho(0, (float)guiW, 0, (float)guiH, portX, portY, portW, portH);
+static void pspEndView(Renderer *renderer){(void)renderer;}
+static void pspBeginGUI(Renderer *renderer,int32_t guiW,int32_t guiH,int32_t portX,int32_t portY,int32_t portW,int32_t portH,int32_t targetSurfaceId){
+    (void)targetSurfaceId; renderer->CPortX=portX;renderer->CPortY=portY;renderer->CPortW=portW;renderer->CPortH=portH;
+    setOrtho(0,(float)guiW,0,(float)guiH,portX,portY,portW,portH);
 }
-
-static void pspSetGuiProjection(Renderer *renderer, int32_t guiW, int32_t guiH, int32_t portW, int32_t portH, bool renderingToUserSurface) {
-    (void)renderer; (void)renderingToUserSurface;
-    setOrtho(0, (float)guiW, 0, (float)guiH, 0, 0, portW, portH);
+static void pspSetGuiProjection(Renderer *renderer,int32_t guiW,int32_t guiH,int32_t portW,int32_t portH,bool renderingToUserSurface){
+    (void)renderer;(void)renderingToUserSurface;setOrtho(0,(float)guiW,0,(float)guiH,0,0,portW,portH);
 }
+static void pspEndGUI(Renderer *renderer){(void)renderer;}
 
-static void pspEndGUI(Renderer *renderer) { (void)renderer; }
+static void pspDrawSpritePartColor(Renderer *renderer,int32_t tpagIndex,int32_t srcOffX,int32_t srcOffY,int32_t srcW,int32_t srcH,float x,float y,float xscale,float yscale,float angleDeg,float pivotX,float pivotY,uint32_t color1,uint32_t color2,uint32_t color3,uint32_t color4,float alpha){
+    DataWin *dw=renderer->dataWin;
+    if(!dw||tpagIndex<0||(uint32_t)tpagIndex>=dw->tpag.count)return;
+    TexturePageItem *tpag=&dw->tpag.items[tpagIndex];
+    int sx=(int)tpag->sourceX+srcOffX, sy=(int)tpag->sourceY+srcOffY, tw,th;
+    if(!uploadRect(dw,tpag->texturePageId,sx,sy,srcW,srcH,&tw,&th))return;
+    float qx[4]={x,x+srcW*xscale,x+srcW*xscale,x}, qy[4]={y,y,y+srcH*yscale,y+srcH*yscale};
+    if(angleDeg!=0.0f){float a=-angleDeg*((float)M_PI/180.0f),ca=cosf(a),sa=sinf(a);for(int i=0;i<4;i++){float dx=qx[i]-pivotX,dy=qy[i]-pivotY;qx[i]=ca*dx-sa*dy+pivotX;qy[i]=sa*dx+ca*dy+pivotY;}}
+    drawQuad(qx[0],qy[0],qx[1],qy[1],qx[2],qy[2],qx[3],qy[3],0,0,(float)srcW,(float)srcH,
+        bgrToGu(color1,alpha),bgrToGu(color2,alpha),bgrToGu(color3,alpha),bgrToGu(color4,alpha));
+}
+static void pspDrawSpritePart(Renderer *renderer,int32_t tpagIndex,int32_t srcOffX,int32_t srcOffY,int32_t srcW,int32_t srcH,float x,float y,float xscale,float yscale,float angleDeg,float pivotX,float pivotY,uint32_t color,float alpha){
+    pspDrawSpritePartColor(renderer,tpagIndex,srcOffX,srcOffY,srcW,srcH,x,y,xscale,yscale,angleDeg,pivotX,pivotY,color,color,color,color,alpha);
+}
+static void pspDrawSprite(Renderer *renderer,int32_t tpagIndex,float x,float y,float originX,float originY,float xscale,float yscale,float angleDeg,uint32_t color,float alpha){
+    if(tpagIndex<0||(uint32_t)tpagIndex>=renderer->dataWin->tpag.count)return;
+    TexturePageItem *t=&renderer->dataWin->tpag.items[tpagIndex];
+    pspDrawSpritePart(renderer,tpagIndex,0,0,t->sourceWidth,t->sourceHeight,x-originX*xscale,y-originY*yscale,xscale,yscale,angleDeg,x,y,color,alpha);
+}
+static void pspDrawRectangle(Renderer *renderer,float x1,float y1,float x2,float y2,uint32_t color,float alpha,bool outline){
+    (void)renderer;uint32_t c=bgrToGu(color,alpha);PSPVertex *v=(PSPVertex*)sceGuGetMemory(4*sizeof(PSPVertex));
+    v[0]=(PSPVertex){0,0,c,x1,y1,0};v[1]=(PSPVertex){0,0,c,x2,y1,0};v[2]=(PSPVertex){0,0,c,x2,y2,0};v[3]=(PSPVertex){0,0,c,x1,y2,0};
+    sceGuDisable(GU_TEXTURE_2D);sceGuDrawArray(outline?GU_LINE_STRIP:GU_TRIANGLE_FAN,GU_COLOR_8888|GU_VERTEX_32BITF|GU_TRANSFORM_2D,4,NULL,v);sceGuEnable(GU_TEXTURE_2D);
+}
+static void pspClearScreen(Renderer *renderer,uint32_t color,float alpha){(void)renderer;sceGuClearColor(bgrToGu(color,alpha));sceGuClear(GU_COLOR_BUFFER_BIT);}
 
-static void drawQuad(float x0, float y0, float x1, float y1, float x2, float y2, float x3, float y3,
-                     float u0, float v0, float u1, float v1, uint32_t c0, uint32_t c1, uint32_t c2, uint32_t c3) {
-    PSPVertex *v = (PSPVertex *)sceGuGetMemory(4 * sizeof(PSPVertex));
+Renderer *PSPRenderer_create(void){
+    Renderer *renderer=NoopRenderer_create(); if(!renderer)return NULL;
+    g_baseVtable=renderer->vtable; g_pspVtable=(RendererVtable*)malloc(sizeof(RendererVtable));
+    if(!g_pspVtable)return renderer;
+    memcpy(g_pspVtable,g_baseVtable,sizeof(RendererVtable));
+    g_pspVtable->init=pspInit; g_pspVtable->destroy=pspDestroy; g_pspVtable->beginFrame=pspBeginFrame;
+    g_pspVtable->endFrameInit=pspEndFrameInit; g_pspVtable->endFrameEnd=pspEndFrameEnd;
+    g_pspVtable->beginView=pspBeginView;g_pspVtable->endView=pspEndView;g_pspVtable->beginGUI=pspBeginGUI;
+    g_pspVtable->setGuiProjection=pspSetGuiProjection;g_pspVtable->endGUI=pspEndGUI;
+    g_pspVtable->drawSprite=pspDrawSprite;g_pspVtable->drawSpritePart=pspDrawSpritePart;
+    g_pspVtable->drawSpritePartColor=pspDrawSpritePartColor;g_pspVtable->drawRectangle=pspDrawRectangle;
+    g_pspVtable->clearScreen=pspClearScreen;
+    renderer->vtable=g_pspVtable; return renderer;
+}
