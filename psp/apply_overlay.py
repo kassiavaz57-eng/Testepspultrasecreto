@@ -6,9 +6,9 @@ for p in (cm,root/'src/runner.h',root/'src/file_system.h',root/'src/data_win.h')
     if not p.is_file(): raise SystemExit(f'ERROR: expected Butterscotch file missing: {p}')
 s=cm.read_text()
 if 'PLATFORM STREQUAL "psp"' in s: raise SystemExit('ERROR: PSP overlay already applied')
-old='if(PLATFORM STREQUAL "ps2" OR PLATFORM STREQUAL "ps3" OR PLATFORM STREQUAL "web" OR PLATFORM STREQUAL "android")'
+old='if(PLATFORM STREQUAL "cli" OR PLATFORM STREQUAL "vita" OR PLATFORM STREQUAL "switch")'
 if old not in s: raise SystemExit('ERROR: CMake loop.c block changed upstream')
-s=s.replace(old,'if(PLATFORM STREQUAL "ps2" OR PLATFORM STREQUAL "ps3" OR PLATFORM STREQUAL "psp" OR PLATFORM STREQUAL "web" OR PLATFORM STREQUAL "android")',1)
+s=s.replace(old,'if(PLATFORM STREQUAL "cli" OR PLATFORM STREQUAL "vita" OR PLATFORM STREQUAL "switch" OR PLATFORM STREQUAL "psp")',1)
 old='if(ENABLE_NOOP_RENDERER AND NOT BACKEND STREQUAL "noop")'
 if old not in s: raise SystemExit('ERROR: CMake noop-renderer guard changed upstream')
 s=s.replace(old,'if(ENABLE_NOOP_RENDERER AND NOT BACKEND STREQUAL "noop" AND NOT PLATFORM STREQUAL "psp")',1)
