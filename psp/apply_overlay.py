@@ -45,7 +45,7 @@ replace_once(
         set(VM_OPCODE_PROFILER_DEFAULT OFF)
         set(VM_STUB_LOGS_DEFAULT OFF)
     elseif(PLATFORM STREQUAL "psp")
-        add_compile_definitions(PLATFORM_PSP USE_FLOAT_REALS NO_RVALUE_INT64)
+        add_compile_definitions(PLATFORM_PSP USE_FLOAT_REALS NO_RVALUE_INT64)\n        set(PLATFORM_LIBRARIES pspuser pspdebug pspctrl)
 
         set(VM_GML_PROFILER_DEFAULT OFF)
         set(VM_TRACING_DEFAULT OFF)
@@ -97,7 +97,7 @@ replace_once(
 CM.write_text(s)
 
 PSP_SRC.mkdir(parents=True, exist_ok=True)
-required = ["psp_main.c", "psp_file_system.c", "psp_file_system.h", "psp_input.c", "psp_input.h"]
+required = ["psp_main.c", "psp_file_system.c", "psp_file_system.h", "psp_input.c", "psp_input.h", "stb_impl.c"]
 for name in required:
     src = ROOT / name
     if not src.exists():
