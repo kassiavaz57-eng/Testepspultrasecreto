@@ -28,6 +28,10 @@ static int g_guReady=0;
 static uint8_t *g_cachedPixels=NULL;
 static size_t g_cachedPixelsSize=0;
 static int g_cachedPage=-1,g_cachedW=0,g_cachedH=0;
+static unsigned long g_drawCalls=0,g_uploadFails=0,g_uploadFailSize=0,g_uploadFailLoad=0,g_uploadFailBounds=0,g_uploadFailPow2=0;
+static unsigned long g_lastReportMs=0;
+static unsigned long pspDiagTimeMs(void){return (unsigned long)(sceKernelGetSystemTimeWide()/1000ULL);}
+static void pspDiagReport(void){unsigned long now=pspDiagTimeMs();if(now-g_lastReportMs>=1000){logInfo("PSP_DIAG draws=%lu fails=%lu size=%lu load=%lu bounds=%lu pow2=%lu\\n",g_drawCalls,g_uploadFails,g_uploadFailSize,g_uploadFailLoad,g_uploadFailBounds,g_uploadFailPow2);g_drawCalls=g_uploadFails=g_uploadFailSize=g_uploadFailLoad=g_uploadFailBounds=g_uploadFailPow2=0;g_lastReportMs=now;}}
 static int nextPow2(int v){int n=1;while(n<v&&n<PSP_TEX_MAX)n<<=1;return n;}
 static void cacheClear(void){free(g_cachedPixels);g_cachedPixels=NULL;g_cachedPixelsSize=0;g_cachedPage=-1;g_cachedW=g_cachedH=0;}
 static uint32_t bgrToGu(uint32_t c,float alpha){unsigned int a=(unsigned int)(alpha*255.0f);if(a>255)a=255;return GU_RGBA(BGR_R(c),BGR_G(c),BGR_B(c),a);}
@@ -50,9 +54,9 @@ static bool loadPage(DataWin *dw,int pageId){
  if(!p||w<=0||h<=0){free(p);return false;} g_cachedPixels=p;g_cachedPixelsSize=(size_t)w*h*4;g_cachedPage=pageId;g_cachedW=w;g_cachedH=h;return true;
 }
 static bool uploadRect(DataWin *dw,int pageId,int sx,int sy,int sw,int sh,int *twOut,int *thOut){
- if(sw<=0||sh<=0||sw>PSP_TEX_MAX||sh>PSP_TEX_MAX)return false;
- if(!loadPage(dw,pageId)||sx<0||sy<0||sx+sw>g_cachedW||sy+sh>g_cachedH)return false;
- int tw=nextPow2(sw),th=nextPow2(sh);if(tw>PSP_TEX_MAX||th>PSP_TEX_MAX)return false;
+ if(sw<=0||sh<=0||sw>PSP_TEX_MAX||sh>PSP_TEX_MAX){g_uploadFails++;g_uploadFailSize++;logWarn("PSP_DIAG SIZE page=%d sw=%d sh=%d\\n",pageId,sw,sh);return false;}
+ if(!loadPage(dw,pageId)){g_uploadFails++;g_uploadFailLoad++;logWarn("PSP_DIAG LOAD page=%d\\n",pageId);return false;} if(sx<0||sy<0||sx+sw>g_cachedW||sy+sh>g_cachedH){g_uploadFails++;g_uploadFailBounds++;logWarn("PSP_DIAG BOUNDS page=%d sx=%d sy=%d sw=%d sh=%d cached=%dx%d\\n",pageId,sx,sy,sw,sh,g_cachedW,g_cachedH);return false;}
+ int tw=nextPow2(sw),th=nextPow2(sh);if(tw>PSP_TEX_MAX||th>PSP_TEX_MAX){g_uploadFails++;g_uploadFailPow2++;logWarn("PSP_DIAG POW2 page=%d tw=%d th=%d\\n",pageId,tw,th);return false;}
  memset(g_textureScratch,0,sizeof(g_textureScratch));
  for(int y=0;y<sh;y++) memcpy(g_textureScratch+(size_t)y*PSP_TEX_MAX*4,g_cachedPixels+((size_t)(sy+y)*g_cachedW+sx)*4,(size_t)sw*4);
  sceKernelDcacheWritebackAll(); sceGuTexMode(GU_PSM_8888,0,0,GU_FALSE); sceGuTexImage(0,tw,th,PSP_TEX_MAX,g_textureScratch);
@@ -134,7 +138,7 @@ static void pspBeginFrame(Renderer *renderer, int32_t gameW, int32_t gameH, int3
     renderer->CPortX=0; renderer->CPortY=0; renderer->CPortW=PSP_W; renderer->CPortH=PSP_H;
 }
 static void pspEndFrameInit(Renderer *renderer){(void)renderer;}
-static void pspEndFrameEnd(Renderer *renderer){(void)renderer;releaseLargePageCache();}
+static void pspEndFrameEnd(Renderer *renderer){(void)renderer;releaseLargePageCache();pspDiagReport();}
 static void pspBeginView(Renderer *renderer,int32_t viewX,int32_t viewY,int32_t viewW,int32_t viewH,int32_t portX,int32_t portY,int32_t portW,int32_t portH,float viewAngle){
     (void)viewAngle;
     renderer->CPortX=portX;renderer->CPortY=portY;renderer->CPortW=portW;renderer->CPortH=portH;
@@ -151,6 +155,7 @@ static void pspSetGuiProjection(Renderer *renderer,int32_t guiW,int32_t guiH,int
 static void pspEndGUI(Renderer *renderer){(void)renderer;}
 
 static void pspDrawSpritePartColor(Renderer *renderer,int32_t tpagIndex,int32_t srcOffX,int32_t srcOffY,int32_t srcW,int32_t srcH,float x,float y,float xscale,float yscale,float angleDeg,float pivotX,float pivotY,uint32_t color1,uint32_t color2,uint32_t color3,uint32_t color4,float alpha){
+    g_drawCalls++;
     DataWin *dw=renderer->dataWin;
     if(!dw||tpagIndex<0||(uint32_t)tpagIndex>=dw->tpag.count)return;
     TexturePageItem *tpag=&dw->tpag.items[tpagIndex];
@@ -218,20 +223,3 @@ static void pspDrawRectangle(Renderer *renderer,float x1,float y1,float x2,float
     float tx2=(x2-g_viewX)*g_scaleX+g_offX, ty2=(y2-g_viewY)*g_scaleY+g_offY;
     v[0]=(PSPVertex){0,0,c,tx1,ty1,0};v[1]=(PSPVertex){0,0,c,tx2,ty1,0};v[2]=(PSPVertex){0,0,c,tx2,ty2,0};v[3]=(PSPVertex){0,0,c,tx1,ty2,0};
     sceGuDisable(GU_TEXTURE_2D);sceGuDrawArray(outline?GU_LINE_STRIP:GU_TRIANGLE_FAN,GU_COLOR_8888|GU_VERTEX_32BITF|GU_TRANSFORM_2D,4,NULL,v);sceGuEnable(GU_TEXTURE_2D);
-}
-static void pspClearScreen(Renderer *renderer,uint32_t color,float alpha){(void)renderer;sceGuClearColor(bgrToGu(color,alpha));sceGuClear(GU_COLOR_BUFFER_BIT);}
-
-Renderer *PSPRenderer_create(void){
-    Renderer *renderer=NoopRenderer_create(); if(!renderer)return NULL;
-    g_baseVtable=renderer->vtable; g_pspVtable=(RendererVtable*)malloc(sizeof(RendererVtable));
-    if(!g_pspVtable)return renderer;
-    memcpy(g_pspVtable,g_baseVtable,sizeof(RendererVtable));
-    g_pspVtable->init=pspInit; g_pspVtable->destroy=pspDestroy; g_pspVtable->beginFrame=pspBeginFrame;
-    g_pspVtable->endFrameInit=pspEndFrameInit; g_pspVtable->endFrameEnd=pspEndFrameEnd;
-    g_pspVtable->beginView=pspBeginView;g_pspVtable->endView=pspEndView;g_pspVtable->beginGUI=pspBeginGUI;
-    g_pspVtable->setGuiProjection=pspSetGuiProjection;g_pspVtable->endGUI=pspEndGUI;
-    g_pspVtable->drawSprite=pspDrawSprite;g_pspVtable->drawSpritePart=pspDrawSpritePart;
-    g_pspVtable->drawSpritePartColor=pspDrawSpritePartColor;g_pspVtable->drawSpriteTiled=pspDrawSpriteTiled;g_pspVtable->drawTiledPart=pspDrawTiledPart;g_pspVtable->drawRectangle=pspDrawRectangle;
-    g_pspVtable->clearScreen=pspClearScreen;
-    renderer->vtable=g_pspVtable; return renderer;
-}
