@@ -41,10 +41,19 @@ jobs:
         working-directory: upstream
         run: cmake --build build
 
+      - name: Package EBOOT.PBP
+        working-directory: upstream/build
+        run: |
+          mksfoex -d MEMSIZE=1 -s APP_VER=0.1 "Butterscotch PSP" PARAM.SFO
+          pack-pbp EBOOT.PBP PARAM.SFO NULL NULL NULL NULL NULL butterscotch NULL
+          test -s EBOOT.PBP
+          ls -lh butterscotch EBOOT.PBP
+
       - name: Upload PSP build
         uses: actions/upload-artifact@v4
         with:
           name: butterscotch-psp
           path: |
-            upstream/build/**/*.elf
-            upstream/build/**/*.PBP
+            upstream/build/butterscotch
+            upstream/build/EBOOT.PBP
+          if-no-files-found: error
