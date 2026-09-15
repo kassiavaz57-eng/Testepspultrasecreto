@@ -154,6 +154,18 @@ runner_replace_once(
 
 #ifdef PLATFORM_PSP
 static unsigned long pspDiagRunnerFrames = 0;
+static int pspDiagLastRoom = -999999;
+static void pspRunnerRoomDiag(Runner* runner, const char* tag) {
+    FILE* f = fopen("ms0:/PSP/GAME/BUTTERSCOTCH/psp_diag_runner.txt", "a");
+    if (f == NULL) return;
+    Room* room = runner->currentRoom;
+    fprintf(f, "ROOM_DIAG tag=%s room=%d name=%s pending=%d instances=%d viewsEnabled=%d orderPos=%d\\n",
+        tag, runner->currentRoomIndex, room != NULL && room->name != NULL ? room->name : "<null>",
+        runner->pendingRoom, (int)arrlen(runner->instances), runner->viewsEnabled ? 1 : 0,
+        runner->currentRoomOrderPosition);
+    fclose(f);
+    pspDiagLastRoom = runner->currentRoomIndex;
+}
 static unsigned long pspDiagViewsEnabled = 0;
 static unsigned long pspDiagViewsSeen = 0;
 static unsigned long pspDiagCameraNull = 0;
@@ -194,6 +206,8 @@ runner_replace_once(
     Room* room = runner->currentRoom;
 #ifdef PLATFORM_PSP
     pspDiagRunnerDraw++;
+    if (runner->currentRoomIndex != pspDiagLastRoom) pspRunnerRoomDiag(runner, "CHANGE");
+    else if ((pspDiagRunnerFrames % 60) == 0) pspRunnerRoomDiag(runner, "FRAME");
 #endif
 
     rebuildDrawableCacheIfDirty(runner);
