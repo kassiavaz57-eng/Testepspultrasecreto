@@ -39,7 +39,7 @@ jobs:
 
       - name: Build
         working-directory: upstream
-        run: psp-cmake --build build -j2
+        run: psp-cmake --build build --parallel 2
 
       - name: Upload PSP build
         uses: actions/upload-artifact@v4
