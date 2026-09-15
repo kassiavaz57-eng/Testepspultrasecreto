@@ -1,5 +1,7 @@
 #include <pspkernel.h>
 #include <pspctrl.h>
+#include <pspgu.h>
+#include <pspdisplay.h>
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdint.h>
