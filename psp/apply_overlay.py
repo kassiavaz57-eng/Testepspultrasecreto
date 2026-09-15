@@ -98,7 +98,7 @@ replace_once(
 replace_once(
 'elseif(PLATFORM STREQUAL "ps2")',
 '''elseif(PLATFORM STREQUAL "psp")
-    target_link_libraries(butterscotch PRIVATE pspuser pspdebug pspctrl pspdisplay_driver pspge_driver)
+    target_link_libraries(butterscotch PRIVATE pspuser pspdebug pspdisplay pspge pspctrl)
 elseif(PLATFORM STREQUAL "ps2")''',
 'PSP system libraries'
 )
