@@ -235,6 +235,15 @@ runner_replace_once(
             } else if (runner->renderer != nullptr) {
 #ifdef PLATFORM_PSP
                 pspDiagDirectSelf++;
+                {
+                    FILE* df = fopen("ms0:/PSP/GAME/BUTTERSCOTCH/psp_diag_runner.txt", "a");
+                    if (df != NULL) {
+                        fprintf(df, "SELF_DRAW sprite=%d image=%g alpha=%g xscale=%g yscale=%g\\n",
+                            inst->spriteIndex, inst->imageIndex, inst->imageAlpha,
+                            inst->imageXscale, inst->imageYscale);
+                        fclose(df);
+                    }
+                }
 #endif
                 Renderer_drawSelf(runner->renderer, inst);''',
     "draw event counters"
