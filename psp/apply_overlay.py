@@ -94,6 +94,23 @@ replace_once(
 'DL library guard'
 )
 
+# PSP has no POSIX sigaction implementation. Keep the core loop, but disable
+# the optional host crash-handler path for this platform.
+replace_once(
+'#if !defined(_WIN32) && !defined(PLATFORM_VITA) && !defined(__SWITCH__) && !defined(__wasi__)',
+'#if !defined(_WIN32) && !defined(PLATFORM_VITA) && !defined(PLATFORM_PSP) && !defined(__SWITCH__) && !defined(__wasi__)',
+'POSIX crash-handler guard'
+)
+
+# Link the actual PSP system libraries used by psp_main.c.
+replace_once(
+'elseif(PLATFORM STREQUAL "ps2")',
+'''elseif(PLATFORM STREQUAL "psp")
+    target_link_libraries(butterscotch PRIVATE pspuser pspdebug pspctrl)
+elseif(PLATFORM STREQUAL "ps2")''',
+'PSP system libraries'
+)
+
 CM.write_text(s)
 
 PSP_SRC.mkdir(parents=True, exist_ok=True)
