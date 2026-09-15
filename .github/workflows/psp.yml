@@ -1,0 +1,43 @@
+name: Butterscotch PSP
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/pspdev/pspsdk:latest
+
+    steps:
+      - name: Checkout PSP overlay
+        uses: actions/checkout@v4
+
+      - name: Fetch upstream Butterscotch
+        run: git clone --depth 1 https://github.com/ButterscotchRunner/Butterscotch.git upstream
+
+      - name: Apply PSP overlay
+        run: |
+          python3 psp/apply_overlay.py upstream
+          python3 psp/validate_overlay.py upstream
+
+      - name: Configure PSP build
+        working-directory: upstream
+        run: |
+          cmake -S . -B build             -DCMAKE_TOOLCHAIN_FILE="$PSPDEV/psp/share/cmake/pspdev.cmake"             -DPLATFORM=psp             -DCMAKE_BUILD_TYPE=Release             -DENABLE_WAD14=OFF             -DENABLE_WAD16=ON             -DENABLE_WAD17=OFF             -DENABLE_LEGACY_GL=OFF             -DENABLE_MODERN_GL=OFF             -DENABLE_NOOP_RENDERER=ON             -DAUDIO_BACKEND=none
+
+      - name: Build
+        run: cmake --build upstream/build -j2
+
+      - name: Upload PSP build
+        uses: actions/upload-artifact@v4
+        with:
+          name: butterscotch-psp
+          path: |
+            upstream/build/**/*.elf
+            upstream/build/**/*.PBP
