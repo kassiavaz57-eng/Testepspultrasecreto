@@ -12,6 +12,10 @@ s=s.replace(old,'if(PLATFORM STREQUAL "cli" OR PLATFORM STREQUAL "vita" OR PLATF
 old='if(ENABLE_NOOP_RENDERER AND NOT BACKEND STREQUAL "noop")'
 if old not in s: raise SystemExit('ERROR: CMake noop-renderer guard changed upstream')
 s=s.replace(old,'if(ENABLE_NOOP_RENDERER AND NOT BACKEND STREQUAL "noop" AND NOT PLATFORM STREQUAL "psp")',1)
+# PSP has no host dynamic-loader/OpenGL GLAD dependency; the noop backend must not build glad.c.
+old_glad='if(NOT PLATFORM STREQUAL "vita" AND NOT PLATFORM STREQUAL "switch")\n        # GLAD'
+if old_glad not in s: raise SystemExit('ERROR: GLAD CMake block changed upstream')
+s=s.replace(old_glad,'if(NOT PLATFORM STREQUAL "vita" AND NOT PLATFORM STREQUAL "switch" AND NOT PLATFORM STREQUAL "psp")\n        # GLAD',1)
 # Upstream declares BACKEND with an empty cache value after the platform preamble.
 # Override that declaration for PSP after it occurs, so target_sources() sees "noop".
 anchor='set(BACKEND "" CACHE STRING "Desktop platform backend")'
