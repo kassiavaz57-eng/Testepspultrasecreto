@@ -1,36 +1,107 @@
-if old not in s: raise SystemExit('ERROR: CMake loop.c block changed upstream')
-s=s.replace(old,'if(PLATFORM STREQUAL "cli" OR PLATFORM STREQUAL "vita" OR PLATFORM STREQUAL "switch" OR PLATFORM STREQUAL "psp")',1)
-old='if(ENABLE_NOOP_RENDERER AND NOT BACKEND STREQUAL "noop")'
-if old not in s: raise SystemExit('ERROR: CMake noop-renderer guard changed upstream')
-s=s.replace(old,'if(ENABLE_NOOP_RENDERER AND NOT BACKEND STREQUAL "noop" AND NOT PLATFORM STREQUAL "psp")',1)
-# PSP has no host dynamic-loader/OpenGL GLAD dependency; the noop backend must not build glad.c.
-old_glad='if(NOT PLATFORM STREQUAL "vita" AND NOT PLATFORM STREQUAL "switch")\n        # GLAD'
-if old_glad not in s: raise SystemExit('ERROR: GLAD CMake block changed upstream')
-s=s.replace(old_glad,'if(NOT PLATFORM STREQUAL "vita" AND NOT PLATFORM STREQUAL "switch" AND NOT PLATFORM STREQUAL "psp")\n        # GLAD',1)
-# PSP uses the native/no-op renderer path; host GL common sources require glad/OpenGL headers.
-old_gl_sources='file(GLOB GL_SOURCES src/image/*.c src/gl_common/*.c)'
-if old_gl_sources not in s: raise SystemExit('ERROR: GL source glob changed upstream')
-s=s.replace(old_gl_sources,'if(PLATFORM STREQUAL "psp")\n        file(GLOB GL_SOURCES src/image/*.c)\n    else()\n        file(GLOB GL_SOURCES src/image/*.c src/gl_common/*.c)\n    endif()',1)
-# Upstream declares BACKEND with an empty cache value after the platform preamble.
-# Override that declaration for PSP after it occurs, so target_sources() sees "noop".
-anchor='set(BACKEND "" CACHE STRING "Desktop platform backend")'
-if anchor not in s: raise SystemExit('ERROR: upstream BACKEND declaration changed')
-s=s.replace(anchor,anchor+'\nif(PLATFORM STREQUAL "psp")\n    set(BACKEND "noop")\nendif()',1)
-block='''elseif(PLATFORM STREQUAL "psp")
-    set(BACKEND "noop")\n    add_compile_definitions(PLATFORM_PSP USE_FLOAT_REALS NO_RVALUE_INT64)
-    set(BACKEND "noop" CACHE STRING "Desktop platform backend" FORCE)
-    set(BACKEND_LIBRARIES "")
-    set(AUDIO_BACKEND "none" CACHE STRING "Audio backend" FORCE)
-    set(ENABLE_NOOP_RENDERER ON CACHE BOOL "Enable the no-op renderer" FORCE)
-    set(ENABLE_LEGACY_GL OFF CACHE BOOL "Enable the legacy OpenGL renderer" FORCE)
-    set(ENABLE_MODERN_GL OFF CACHE BOOL "Enable the modern OpenGL renderer" FORCE)
-    target_compile_options(butterscotch PRIVATE -O2 -G0 -fno-strict-aliasing)
-    target_link_libraries(butterscotch PRIVATE bzip2 stb_ds sha1 stb_vorbis pspdebug pspkernel pspctrl pspdisplay pspgu pspgum pspaudio m)
-'''
-needle='elseif(PLATFORM STREQUAL "ps2")'
-if needle not in s: raise SystemExit('ERROR: PS2 CMake block missing')
-s=s.replace(needle,block+needle,1)
-psp=root/'src/psp';psp.mkdir(exist_ok=True)
-for n in ('psp_main.c','psp_file_system.c','psp_file_system.h','psp_input.c','psp_input.h'): shutil.copy2(ov/n,psp/n)
-cm.write_text(s)
-print('PSP overlay applied.')
+#!/usr/bin/env python3
+import shutil
+import sys
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parent
+UPSTREAM = Path(sys.argv[1]).resolve() if len(sys.argv) > 1 else ROOT / "upstream"
+CM = UPSTREAM / "CMakeLists.txt"
+PSP_SRC = UPSTREAM / "src" / "psp"
+
+if not CM.exists():
+    raise SystemExit(f"Missing upstream CMakeLists.txt: {CM}")
+
+s = CM.read_text()
+
+def replace_once(old, new, label):
+    global s
+    if old not in s:
+        raise SystemExit(f"ERROR: upstream CMakeLists.txt changed; missing {label}")
+    s = s.replace(old, new, 1)
+
+# Make PSP enter the same refactored platform build path as CLI/Vita/Switch.
+replace_once(
+    'if(PLATFORM STREQUAL "cli" OR PLATFORM STREQUAL "vita" OR PLATFORM STREQUAL "switch")',
+    'if(PLATFORM STREQUAL "cli" OR PLATFORM STREQUAL "vita" OR PLATFORM STREQUAL "switch" OR PLATFORM STREQUAL "psp")',
+    'platform source block'
+)
+
+# Add a PSP-specific branch without changing the existing desktop/Vita/Switch behavior.
+replace_once(
+'''    elseif(PLATFORM STREQUAL "switch")
+        add_compile_definitions(PLATFORM_SWITCH)
+
+        set(VM_GML_PROFILER_DEFAULT OFF)
+        set(VM_TRACING_DEFAULT OFF)
+        set(VM_OPCODE_PROFILER_DEFAULT OFF)
+        set(VM_STUB_LOGS_DEFAULT OFF)
+    else()
+''',
+'''    elseif(PLATFORM STREQUAL "switch")
+        add_compile_definitions(PLATFORM_SWITCH)
+
+        set(VM_GML_PROFILER_DEFAULT OFF)
+        set(VM_TRACING_DEFAULT OFF)
+        set(VM_OPCODE_PROFILER_DEFAULT OFF)
+        set(VM_STUB_LOGS_DEFAULT OFF)
+    elseif(PLATFORM STREQUAL "psp")
+        add_compile_definitions(PLATFORM_PSP USE_FLOAT_REALS NO_RVALUE_INT64)
+
+        set(VM_GML_PROFILER_DEFAULT OFF)
+        set(VM_TRACING_DEFAULT OFF)
+        set(VM_OPCODE_PROFILER_DEFAULT OFF)
+        set(VM_STUB_LOGS_DEFAULT OFF)
+    else()
+''',
+    'PSP platform branch'
+)
+
+# The PSP port uses its own native/no-op platform backend.
+replace_once(
+'''set(BACKEND "" CACHE STRING "Desktop platform backend")
+set(AUDIO_BACKEND "" CACHE STRING "Audio backend")
+''',
+'''set(BACKEND "" CACHE STRING "Desktop platform backend")
+if(PLATFORM STREQUAL "psp")
+    set(BACKEND "noop")
+endif()
+set(AUDIO_BACKEND "" CACHE STRING "Audio backend")
+''',
+'PSP backend default'
+)
+
+# The no-op PSP renderer must not compile host OpenGL/GLAD code.
+replace_once(
+'file(GLOB GL_SOURCES src/image/*.c src/gl_common/*.c)',
+'''if(PLATFORM STREQUAL "psp")
+        file(GLOB GL_SOURCES src/image/*.c)
+    else()
+        file(GLOB GL_SOURCES src/image/*.c src/gl_common/*.c)
+    endif()''',
+'GL source selection'
+)
+
+replace_once(
+'if(NOT PLATFORM STREQUAL "vita" AND NOT PLATFORM STREQUAL "switch")\n        # GLAD',
+'if(NOT PLATFORM STREQUAL "vita" AND NOT PLATFORM STREQUAL "switch" AND NOT PLATFORM STREQUAL "psp")\n        # GLAD',
+'GLAD guard'
+)
+
+# Avoid the host dynamic-loader dependency on PSP.
+replace_once(
+'elseif(NOT PLATFORM STREQUAL "vita" AND NOT PLATFORM STREQUAL "switch")',
+'elseif(NOT PLATFORM STREQUAL "vita" AND NOT PLATFORM STREQUAL "switch" AND NOT PLATFORM STREQUAL "psp")',
+'DL library guard'
+)
+
+CM.write_text(s)
+
+PSP_SRC.mkdir(parents=True, exist_ok=True)
+required = ["psp_main.c", "psp_file_system.c", "psp_file_system.h", "psp_input.c", "psp_input.h"]
+for name in required:
+    src = ROOT / name
+    if not src.exists():
+        raise SystemExit(f"Missing PSP source: {src}")
+    shutil.copy2(src, PSP_SRC / name)
+
+print("PSP overlay applied successfully.")
