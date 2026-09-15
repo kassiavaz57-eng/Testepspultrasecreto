@@ -45,7 +45,7 @@ replace_once(
         set(VM_OPCODE_PROFILER_DEFAULT OFF)
         set(VM_STUB_LOGS_DEFAULT OFF)
     elseif(PLATFORM STREQUAL "psp")
-        add_compile_definitions(PLATFORM_PSP USE_FLOAT_REALS NO_RVALUE_INT64)\n        set(PLATFORM_LIBRARIES pspuser pspctrl pspgu)
+        add_compile_definitions(PLATFORM_PSP USE_FLOAT_REALS NO_RVALUE_INT64)\n        set(PLATFORM_LIBRARIES pspuser pspctrl pspgu pspgum pspdisplay)
 
         set(VM_GML_PROFILER_DEFAULT OFF)
         set(VM_TRACING_DEFAULT OFF)
@@ -98,7 +98,7 @@ replace_once(
 replace_once(
 'elseif(PLATFORM STREQUAL "ps2")',
 '''elseif(PLATFORM STREQUAL "psp")
-    target_link_libraries(butterscotch PRIVATE pspuser pspctrl pspgu)
+    target_link_libraries(butterscotch PRIVATE pspuser pspctrl pspgu pspgum pspdisplay)
 elseif(PLATFORM STREQUAL "ps2")''',
 'PSP system libraries'
 )
