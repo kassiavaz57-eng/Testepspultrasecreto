@@ -63,8 +63,8 @@ static bool uploadRect(DataWin *dw,int pageId,int sx,int sy,int sw,int sh,int *t
  int tw=nextPow2(sw),th=nextPow2(sh);if(tw>PSP_TEX_MAX||th>PSP_TEX_MAX){g_uploadFails++;g_uploadFailPow2++;logWarn("PSP_DIAG POW2 page=%d tw=%d th=%d\\n",pageId,tw,th);return false;}
  memset(g_textureScratch,0,sizeof(g_textureScratch));
  for(int y=0;y<sh;y++) memcpy(g_textureScratch+(size_t)y*PSP_TEX_MAX*4,g_cachedPixels+((size_t)(sy+y)*g_cachedW+sx)*4,(size_t)sw*4);
- sceKernelDcacheWritebackAll(); sceGuTexMode(GU_PSM_8888,0,0,GU_FALSE); sceGuTexImage(0,tw,th,PSP_TEX_MAX,g_textureScratch);
- sceGuTexFunc(GU_TFX_MODULATE,GU_TCC_RGBA); sceGuTexFilter(GU_NEAREST,GU_NEAREST); sceGuTexFlush();
+ sceKernelDcacheWritebackInvalidateAll(); sceGuTexMode(GU_PSM_8888,0,0,GU_FALSE); sceGuTexImage(0,tw,th,PSP_TEX_MAX,g_textureScratch);
+ sceGuTexFunc(GU_TFX_MODULATE,GU_TCC_RGBA); sceGuTexFilter(GU_NEAREST,GU_NEAREST); sceGuTexFlush(); sceGuTexSync();
  *twOut=tw;*thOut=th;return true;
 }
 static void drawQuad(float x0,float y0,float x1,float y1,float x2,float y2,float x3,float y3,float u0,float v0,float u1,float v1,uint32_t c0,uint32_t c1,uint32_t c2,uint32_t c3){
