@@ -41,13 +41,23 @@ jobs:
         working-directory: upstream
         run: cmake --build build
 
+      - name: Prepare PSP executable
+        working-directory: upstream/build
+        run: |
+          # Match the PSPSDK's official EBOOT pipeline: fix imports, then strip.
+          psp-fixup-imports butterscotch
+          psp-strip butterscotch -o butterscotch_strip.elf
+          test -s butterscotch_strip.elf
+          readelf -h butterscotch_strip.elf | grep -E 'Class|Machine'
+          ls -lh butterscotch butterscotch_strip.elf
+
       - name: Package EBOOT.PBP
         working-directory: upstream/build
         run: |
           mksfoex -d MEMSIZE=1 -s APP_VER=0.1 "Butterscotch PSP" PARAM.SFO
-          pack-pbp EBOOT.PBP PARAM.SFO NULL NULL NULL NULL NULL butterscotch NULL
+          pack-pbp EBOOT.PBP PARAM.SFO NULL NULL NULL NULL NULL butterscotch_strip.elf NULL
           test -s EBOOT.PBP
-          ls -lh butterscotch EBOOT.PBP
+          ls -lh EBOOT.PBP
 
       - name: Upload PSP build
         uses: actions/upload-artifact@v4
