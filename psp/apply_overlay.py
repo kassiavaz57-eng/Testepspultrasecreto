@@ -12,6 +12,11 @@ s=s.replace(old,'if(PLATFORM STREQUAL "cli" OR PLATFORM STREQUAL "vita" OR PLATF
 old='if(ENABLE_NOOP_RENDERER AND NOT BACKEND STREQUAL "noop")'
 if old not in s: raise SystemExit('ERROR: CMake noop-renderer guard changed upstream')
 s=s.replace(old,'if(ENABLE_NOOP_RENDERER AND NOT BACKEND STREQUAL "noop" AND NOT PLATFORM STREQUAL "psp")',1)
+# Upstream declares BACKEND with an empty cache value after the platform preamble.
+# Override that declaration for PSP after it occurs, so target_sources() sees "noop".
+anchor='set(BACKEND "" CACHE STRING "Desktop platform backend")'
+if anchor not in s: raise SystemExit('ERROR: upstream BACKEND declaration changed')
+s=s.replace(anchor,anchor+'\nif(PLATFORM STREQUAL "psp")\n    set(BACKEND "noop")\nendif()',1)
 block='''elseif(PLATFORM STREQUAL "psp")
     set(BACKEND "noop")\n    add_compile_definitions(PLATFORM_PSP USE_FLOAT_REALS NO_RVALUE_INT64)
     set(BACKEND "noop" CACHE STRING "Desktop platform backend" FORCE)
