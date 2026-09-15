@@ -1,3 +1,18 @@
+#include <pspkernel.h>
+#include <pspctrl.h>
+#include <pspdisplay.h>
+#include <pspgu.h>
+#include <stdint.h>
+#include <stdbool.h>
+#include "runner.h"
+#include "runner_keyboard.h"
+#include "psp_input.h"
+#include "psp_renderer.h"
+#include "psp_file_system.h"
+#include "data_win.h"
+#include "vm.h"
+#include "noop_audio_system.h"
+#include "log.h"
 int main(void){setup_callbacks();logInfo("Butterscotch PSP: boot\n");const char*root="ms0:/PSP/GAME/BUTTERSCOTCH";const char*path="ms0:/PSP/GAME/BUTTERSCOTCH/data.win";DataWin*d=NULL;if(!load_data_win(path,&d)){logError("Could not load %s\n",path);sceKernelSleepThread();return 1;}logInfo("WAD %u, %ux%u\n",d->gen8.wadVersion,d->gen8.defaultWindowWidth,d->gen8.defaultWindowHeight);VMContext*vm=VM_create(d);Renderer*r=PSPRenderer_create();AudioSystem*a=(AudioSystem*)NoopAudioSystem_create();FileSystem*fs=PspFileSystem_create(root);if(!vm||!r||!a||!fs){logError("Subsystem initialization failed\n");sceKernelSleepThread();return 1;}Runner*runner=Runner_create(d,vm,r,fs,a,0);if(!runner){logError("Runner_create failed\n");sceKernelSleepThread();return 1;}runner->osType=OS_PSP;Runner_initFirstRoom(runner);
 sceDisplayWaitVblankStart();
 for(;;){
