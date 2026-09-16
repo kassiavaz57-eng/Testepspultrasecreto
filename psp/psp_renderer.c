@@ -322,12 +322,12 @@ static bool uploadRect(DataWin *dw,int pageId,int sx,int sy,int sw,int sh,int *t
  if(g_boundTexture!=e || g_boundTw!=tw || g_boundTh!=th){
      g_texBinds++;
      /*
-      * sceGuTexImage() already flushes the PSP texture page-cache. The
-      * explicit sceGuTexFlush() that used to follow it was redundant.
-      * Texture mode/function/filter are constant for this renderer and are
-      * configured once when the GU starts.
+      * Texture buffers can be reused after cache eviction. Flush the GU
+      * texture cache after selecting the new buffer so stale contents from
+      * an earlier texture cannot be displayed.
       */
      sceGuTexImage(0,tw,th,tw,e->pixels);
+     sceGuTexFlush();
      g_boundTexture=e; g_boundTw=tw; g_boundTh=th;
  }
  *twOut=tw;*thOut=th;*pixelsOut=e->pixels;return true;
