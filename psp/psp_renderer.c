@@ -3,6 +3,7 @@
 #include "image/image_decoder.h"
 #include "data_win.h"
 #include "common.h"
+#include "text_utils.h"
 #include "log.h"
 #include <pspgu.h>
 #include <pspgum.h>
@@ -198,6 +199,7 @@ static void pspDestroy(Renderer *renderer) {
 
 static void pspBeginFrame(Renderer *renderer, int32_t gameW, int32_t gameH, int32_t windowW, int32_t windowH) {
     (void)windowW; (void)windowH;
+    pspTextureCacheFrameStart();
     sceGuStart(GU_DIRECT, g_list);
     sceGuClearColor(GU_RGBA(0,0,0,255));
     sceGuClearDepth(0);
@@ -241,6 +243,79 @@ static void pspSetGuiProjection(Renderer *renderer,int32_t guiW,int32_t guiH,int
 }
 static void pspEndGUI(Renderer *renderer){(void)renderer;}
 
+
+static void pspDrawTextColor(Renderer *renderer,const char *text,float x,float y,float xscale,float yscale,float angleDeg,int32_t c1,int32_t c2,int32_t c3,int32_t c4,float alpha,float lineSeparation){
+    if(!renderer||!renderer->dataWin||!text||renderer->drawFont<0||(uint32_t)renderer->drawFont>=renderer->dataWin->font.count)return;
+    DataWin *dw=renderer->dataWin;
+    Font *font=&dw->font.fonts[renderer->drawFont];
+    if(font->tpagIndex<0||(uint32_t)font->tpagIndex>=dw->tpag.count)return;
+    int len=(int)strlen(text); if(len<=0)return;
+    int lines=TextUtils_countLines(text,len);
+    float stride=(lineSeparation<0.0f)?TextUtils_lineStride(font):(lineSeparation/(font->scaleY!=0.0f?font->scaleY:1.0f));
+    float valign=0.0f,total=(float)lines*stride;
+    if(renderer->drawValign==1)valign=-total/2.0f;
+    else if(renderer->drawValign==2)valign=-total;
+    float angle=-angleDeg*(float)M_PI/180.0f,ca=cosf(angle),sa=sinf(angle);
+    int lineStart=0;
+    while(lineStart<=len){
+        int lineEnd=lineStart;
+        while(lineEnd<len&&!TextUtils_isNewlineChar(text[lineEnd]))lineEnd++;
+        int lineLen=lineEnd-lineStart;
+        float lineWidth=TextUtils_measureLineWidth(font,text+lineStart,lineLen);
+        float halign=0.0f;
+        if(renderer->drawHalign==1)halign=-lineWidth/2.0f;
+        else if(renderer->drawHalign==2)halign=-lineWidth;
+        float cursorX=halign;
+        float cursorY=valign-(float)font->ascenderOffset+(float)(lineStart==0?0:0);
+        int previousLine=0;
+        for(int ls=0, p=0; ls<lineStart; ls++){ if(TextUtils_isNewlineChar(text[ls])) previousLine++; }
+        cursorY+=(float)previousLine*stride;
+        int pos=0; uint16_t ch=0; bool hasCh=false;
+        if(lineLen>0){ch=TextUtils_decodeUtf8(text+lineStart,lineLen,&pos);hasCh=true;}
+        while(hasCh){
+            FontGlyph *glyph=TextUtils_findGlyph(font,ch);
+            uint16_t next=0; bool hasNext=lineLen>pos;
+            if(hasNext)next=TextUtils_decodeUtf8(text+lineStart,lineLen,&pos);
+            if(glyph){
+                if(glyph->sourceWidth>0&&glyph->sourceHeight>0){
+                    TexturePageItem *tp=&dw->tpag.items[font->tpagIndex];
+                    int sx=(int)tp->sourceX+(int)glyph->sourceX;
+                    int sy=(int)tp->sourceY+(int)glyph->sourceY;
+                    int tw=0,th=0; const void *pixels=NULL;
+                    if(uploadRect(dw,tp->texturePageId,sx,sy,glyph->sourceWidth,glyph->sourceHeight,&tw,&th,&pixels)){
+                        (void)pixels;
+                        float lx=cursorX+(float)glyph->offset;
+                        float ly=cursorY;
+                        float w=(float)glyph->sourceWidth*xscale*font->scaleX;
+                        float h=(float)glyph->sourceHeight*yscale*font->scaleY;
+                        float px=x+lx*xscale*font->scaleX, py=y+ly*yscale*font->scaleY;
+                        float qx0=px,qy0=py,qx1=px+w,qy1=py,qx2=px+w,qy2=py+h,qx3=px,qy3=py+h;
+                        if(angleDeg!=0.0f){
+                            float ax=x,ay=y;
+                            float dx[4]={qx0-ax,qx1-ax,qx2-ax,qx3-ax},dy[4]={qy0-ay,qy1-ay,qy2-ay,qy3-ay};
+                            qx0=ax+ca*dx[0]-sa*dy[0]; qy0=ay+sa*dx[0]+ca*dy[0];
+                            qx1=ax+ca*dx[1]-sa*dy[1]; qy1=ay+sa*dx[1]+ca*dy[1];
+                            qx2=ax+ca*dx[2]-sa*dy[2]; qy2=ay+sa*dx[2]+ca*dy[2];
+                            qx3=ax+ca*dx[3]-sa*dy[3]; qy3=ay+sa*dx[3]+ca*dy[3];
+                        }
+                        uint32_t cc0=bgrToGu((uint32_t)c1,alpha),cc1=bgrToGu((uint32_t)c2,alpha),cc2=bgrToGu((uint32_t)c3,alpha),cc3=bgrToGu((uint32_t)c4,alpha);
+                        drawQuad(qx0,qy0,qx1,qy1,qx2,qy2,qx3,qy3,0,0,(float)glyph->sourceWidth,(float)glyph->sourceHeight,cc0,cc1,cc2,cc3);
+                    }
+                }
+                cursorX+=(float)glyph->shift;
+                if(hasNext)cursorX+=TextUtils_getKerningOffset(glyph,next);
+            }
+            ch=next;hasCh=hasNext;
+        }
+        if(lineEnd>=len)break;
+        lineStart=TextUtils_skipNewline(text,lineEnd,len);
+    }
+}
+static void pspDrawText(Renderer *renderer,const char *text,float x,float y,float xscale,float yscale,float angleDeg,float lineSeparation){
+    uint32_t c=renderer?renderer->drawColor:0xFFFFFF;
+    float a=renderer?renderer->drawAlpha:1.0f;
+    pspDrawTextColor(renderer,text,x,y,xscale,yscale,angleDeg,(int32_t)c,(int32_t)c,(int32_t)c,(int32_t)c,a,lineSeparation);
+}
 static void pspDrawSpritePartColor(Renderer *renderer,int32_t tpagIndex,int32_t srcOffX,int32_t srcOffY,int32_t srcW,int32_t srcH,float x,float y,float xscale,float yscale,float angleDeg,float pivotX,float pivotY,uint32_t color1,uint32_t color2,uint32_t color3,uint32_t color4,float alpha){
     // The PSP GU texture dimensions are capped at 512x512. Split larger GameMaker
     // source rectangles into native-size pieces instead of dropping them entirely.
@@ -336,7 +411,7 @@ Renderer *PSPRenderer_create(void){
     g_pspVtable->endFrameInit=pspEndFrameInit; g_pspVtable->endFrameEnd=pspEndFrameEnd;
     g_pspVtable->beginView=pspBeginView;g_pspVtable->endView=pspEndView;g_pspVtable->beginGUI=pspBeginGUI;
     g_pspVtable->setGuiProjection=pspSetGuiProjection;g_pspVtable->endGUI=pspEndGUI;
-    g_pspVtable->drawSprite=pspDrawSprite;g_pspVtable->drawSpritePart=pspDrawSpritePart;
+    g_pspVtable->drawSprite=pspDrawSprite;g_pspVtable->drawSpritePart=pspDrawSpritePart;g_pspVtable->drawText=pspDrawText;g_pspVtable->drawTextColor=pspDrawTextColor;g_pspVtable->drawTextUI=pspDrawTextColor;
     g_pspVtable->drawSpritePartColor=pspDrawSpritePartColor;g_pspVtable->drawSpriteTiled=pspDrawSpriteTiled;g_pspVtable->drawTiledPart=pspDrawTiledPart;g_pspVtable->drawRectangle=pspDrawRectangle;
     g_pspVtable->clearScreen=pspClearScreen;
     renderer->vtable=g_pspVtable; return renderer;
