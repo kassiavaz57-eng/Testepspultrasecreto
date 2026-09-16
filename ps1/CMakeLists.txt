@@ -32,7 +32,6 @@ target_include_directories(butterscotch_ps1 PRIVATE "${UPSTREAM}" "${UPSTREAM}/d
 target_compile_definitions(butterscotch_ps1 PRIVATE
     ENABLE_NOOP_RENDERER
     USE_NOOP_FILE_SYSTEM
-    DATA_WIN_PATH="cdrom:\\\\DATA.WIN;1"
 )
 target_compile_options(butterscotch_ps1 PRIVATE -ffunction-sections -fdata-sections)
 target_link_options(butterscotch_ps1 PRIVATE -Wl,--gc-sections)
