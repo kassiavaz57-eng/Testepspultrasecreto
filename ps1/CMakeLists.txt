@@ -27,6 +27,9 @@ set(PS1_SOURCES
     compat/math.c
     compat/libc.c
     gettime.c
+    "${UPSTREAM}/../vendor/md5/md5.c"
+    "${UPSTREAM}/../vendor/base64/base64.c"
+    "${UPSTREAM}/../vendor/sha1/sha1.c"
 )
 
 psn00bsdk_add_executable(butterscotch_ps1 GPREL ${CORE_SOURCES} ${PS1_SOURCES})
@@ -53,3 +56,4 @@ target_compile_definitions(butterscotch_ps1 PRIVATE
 )
 target_compile_options(butterscotch_ps1 PRIVATE -ffunction-sections -fdata-sections)
 target_link_options(butterscotch_ps1 PRIVATE -Wl,--gc-sections)
+target_link_libraries(butterscotch_ps1 PRIVATE m)
