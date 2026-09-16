@@ -40,12 +40,16 @@ jobs:
             </track>
           </iso_project>
           XML
-          mkpsxiso ps1/cd.xml ps1/build/butterscotch_ps1.bin
+          mkdir -p out
+          mkpsxiso ps1/cd.xml out/butterscotch_ps1.bin
+          find . -maxdepth 4 -type f \( -name '*.bin' -o -name '*.cue' \) -print
+          test -f out/butterscotch_ps1.bin
+          find . -maxdepth 4 -name '*.cue' -exec cp {} out/butterscotch_ps1.cue \;
+          test -f out/butterscotch_ps1.cue
 
       - name: Upload PS1 CD
         uses: actions/upload-artifact@v4
         with:
           name: butterscotch-ps1-chapter1
-          path: |
-            ps1/build/butterscotch_ps1.bin
-            ps1/build/butterscotch_ps1.cue
+          if-no-files-found: error
+          path: out/
