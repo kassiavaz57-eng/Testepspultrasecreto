@@ -35,7 +35,7 @@ jobs:
       - name: Configure PSP build
         working-directory: upstream
         run: |
-          psp-cmake -S . -B build             -DPLATFORM=psp             -DBACKEND=noop             -DCMAKE_BUILD_TYPE=Release             -DENABLE_WAD14=OFF             -DENABLE_WAD16=ON             -DENABLE_WAD17=OFF             -DENABLE_LEGACY_GL=OFF             -DENABLE_MODERN_GL=OFF             -DENABLE_NOOP_RENDERER=ON             -DAUDIO_BACKEND=none
+          psp-cmake -S . -B build             -DPLATFORM=psp             -DBACKEND=noop             -DCMAKE_BUILD_TYPE=Release             -DENABLE_WAD14=OFF             -DENABLE_WAD16=OFF             -DENABLE_WAD17=ON             -DENABLE_LEGACY_GL=OFF             -DENABLE_MODERN_GL=OFF             -DENABLE_NOOP_RENDERER=ON             -DAUDIO_BACKEND=none
 
       - name: Build
         working-directory: upstream
