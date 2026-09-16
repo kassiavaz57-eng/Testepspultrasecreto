@@ -56,4 +56,4 @@ target_compile_definitions(butterscotch_ps1 PRIVATE
 )
 target_compile_options(butterscotch_ps1 PRIVATE -ffunction-sections -fdata-sections)
 target_link_options(butterscotch_ps1 PRIVATE -Wl,--gc-sections)
-target_link_libraries(butterscotch_ps1 PRIVATE m)
+
