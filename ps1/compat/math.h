@@ -11,6 +11,7 @@ static inline float atan2f(float y, float x);
 static inline float ceilf(float x);
 static inline int ps1_isnanf(float x) { return x != x; }
 static inline int ps1_isinff(float x) { return x == INFINITY || x == -INFINITY; }
+static inline double ceil(double x) { int64_t i=(int64_t)x; if(x>0.0&&(double)i!=x)++i; return (double)i; }
 static inline double floor(double x) { int64_t i=(int64_t)x; if(x<0.0&&x!=(double)i)--i; return (double)i; }
 static inline double fabs(double x) { return x<0.0?-x:x; }
 static inline double sqrt(double x) { return (double)sqrtf((float)x); }
