@@ -7,42 +7,44 @@
 
 static DISPENV disp;
 static DRAWENV draw;
-static RECT box;
+static TILE tile;
 
-static void video_init(void) {
+static void rect(int x,int y,int w,int h,int r,int g,int b){
+    setTile(&tile);
+    setXY0(&tile,x,y);
+    setWH(&tile,w,h);
+    setRGB0(&tile,r,g,b);
+    DrawPrim(&tile);
+}
+
+static void video_init(void){
     ResetGraph(0);
-    SetDefDispEnv(&disp, 0, 0, W, H);
-    SetDefDrawEnv(&draw, 0, H, W, H);
-    draw.isbg = 1;
-    setRGB0(&draw, 0, 0, 0);
+    SetDefDispEnv(&disp,0,0,W,H);
+    SetDefDrawEnv(&draw,0,H,W,H);
+    draw.isbg=1;
+    setRGB0(&draw,0,0,0);
     PutDispEnv(&disp);
     PutDrawEnv(&draw);
     SetDispMask(1);
 }
 
-static void draw_test(void) {
-    ClearImage(&box, 0, 0, 0);
-    box.x = 0;
-    box.y = 0;
-    box.w = W;
-    box.h = H;
-    ClearImage(&box, 96, 0, 0);
+static void pattern(void){
+    rect(0,0,W,H,0,0,0);
+    rect(4,4,28,28,0,0,255);
+    rect(W-32,4,28,28,0,255,0);
+    rect(4,H-32,28,28,255,0,0);
+    rect(W-32,H-32,28,28,255,255,0);
+    rect(156,116,8,8,255,255,255);
+    rect(0,119,W,2,255,255,255);
+    rect(159,0,2,H,255,255,255);
     DrawSync(0);
-    VSync(0);
 }
 
-int main(void) {
+int main(void){
     video_init();
-
-    box.x = 0;
-    box.y = 0;
-    box.w = W;
-    box.h = H;
-    ClearImage(&box, 96, 0, 0);
-
-    for (;;) {
-        draw_test();
+    for(;;){
+        pattern();
+        VSync(0);
     }
-
     return 0;
 }
