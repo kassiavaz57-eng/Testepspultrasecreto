@@ -44,7 +44,7 @@ static int32_t pspPlaySound(AudioSystem* audio,int32_t soundIndex,int32_t priori
     if(a->channel<0 || soundIndex<0 || (uint32_t)soundIndex>=a->base.dw->sond.count)return -1;
     Sound* s=&a->base.dw->sond.sounds[soundIndex];
     if(s->audioGroup<0)return -1;
-    DataWin* group=a->base.audioGroups[s->audioGroup];
+    DataWin* group=(s->audioGroup==0)?a->base.dw:NULL;
     if(!group || s->audioFile<0 || (uint32_t)s->audioFile>=group->audo.count)return -1;
     DataWin_loadAudoIfNeeded(group,(uint32_t)s->audioFile);
     AudioEntry* e=&group->audo.entries[s->audioFile];
