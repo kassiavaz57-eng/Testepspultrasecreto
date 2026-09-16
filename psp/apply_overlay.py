@@ -131,6 +131,7 @@ final_link_psp = final_link + '''
                 pspgum
                 pspdisplay
                 psppower
+                pspaudio
             )
         endif()'''
 if final_link not in s:
