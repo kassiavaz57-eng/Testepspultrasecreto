@@ -27,7 +27,17 @@ set(PS1_SOURCES
 )
 
 psn00bsdk_add_executable(butterscotch_ps1 GPREL ${CORE_SOURCES} ${PS1_SOURCES})
-target_include_directories(butterscotch_ps1 BEFORE PRIVATE "${CMAKE_CURRENT_LIST_DIR}/compat" "${UPSTREAM}" "${UPSTREAM}/debug_font")
+target_include_directories(butterscotch_ps1 BEFORE PRIVATE
+    "${CMAKE_CURRENT_LIST_DIR}/compat"
+    "${UPSTREAM}"
+    "${UPSTREAM}/vendor/stb/ds"
+    "${UPSTREAM}/vendor/stb/vorbis"
+    "${UPSTREAM}/vendor/md5"
+    "${UPSTREAM}/vendor/sha1"
+    "${UPSTREAM}/vendor/base64"
+    "${UPSTREAM}/vendor/bzip2"
+    "${UPSTREAM}/debug_font"
+)
 target_compile_definitions(butterscotch_ps1 PRIVATE
     ENABLE_NOOP_RENDERER
     USE_NOOP_FILE_SYSTEM
