@@ -1,0 +1,51 @@
+name: Butterscotch PS1 CD
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ps1-experiment]
+    paths: ["ps1/**", "data.win", ".github/workflows/ps1-cd.yml"]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    container:
+      image: luksamuk/psxtoolchain:latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build executable
+        run: |
+          export PSN00BSDK_LIBS=/opt/psn00bsdk/lib/libpsn00b
+          export PATH=/opt/psn00bsdk/bin:$PATH
+          cmake -S ps1 -B ps1/build -G "Unix Makefiles"             -DCMAKE_TOOLCHAIN_FILE=$PSN00BSDK_LIBS/cmake/sdk.cmake             -DCMAKE_BUILD_TYPE=Release
+          cmake --build ps1/build -j2
+
+      - name: Prepare Chapter 1 CD tree
+        run: |
+          mkdir -p ps1/cd
+          cp ps1/build/butterscotch_ps1.exe ps1/cd/BUTTERSCOTCH.EXE
+          cp data.win ps1/cd/DATA.WIN
+          printf 'BOOT=cdrom:\\BUTTERSCOTCH.EXE;1\nTCB=4\nEVENT=10\nSTACK=801FFFF0\n' > ps1/cd/SYSTEM.CNF
+          cat > ps1/cd.xml <<'XML'
+          <?xml version="1.0"?>
+          <iso_project image_name="butterscotch_ps1" cue_sheet="butterscotch_ps1.cue">
+            <track type="data">
+              <identifiers system="PLAYSTATION" application="PLAYSTATION" volume="BUTTERSCOTCH" publisher="BUTTERSCOTCH"/>
+              <directory_tree>
+                <file name="SYSTEM.CNF" type="data" source="cd/SYSTEM.CNF"/>
+                <file name="BUTTERSCOTCH.EXE" type="data" source="cd/BUTTERSCOTCH.EXE"/>
+                <file name="DATA.WIN" type="data" source="cd/DATA.WIN"/>
+              </directory_tree>
+            </track>
+          </iso_project>
+          XML
+          mkpsxiso ps1/cd.xml ps1/build/butterscotch_ps1.bin
+
+      - name: Upload PS1 CD
+        uses: actions/upload-artifact@v4
+        with:
+          name: butterscotch-ps1-chapter1
+          path: |
+            ps1/build/butterscotch_ps1.bin
+            ps1/build/butterscotch_ps1.cue
