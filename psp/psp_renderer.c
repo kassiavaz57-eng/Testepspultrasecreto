@@ -295,7 +295,7 @@ static void pspBeginFrame(Renderer *renderer, int32_t gameW, int32_t gameH, int3
     sceGuStart(GU_DIRECT, g_list);
     sceGuClearColor(GU_RGBA(0,0,0,255));
     sceGuClearDepth(0);
-    sceGuClear(GU_COLOR_BUFFER_BIT | GU_DEPTH_BUFFER_BIT);
+    sceGuClear(GU_COLOR_BUFFER_BIT);
     float sx=(gameW>0)?((float)PSP_W/(float)gameW):1.0f;
     float sy=(gameH>0)?((float)PSP_H/(float)gameH):1.0f;
     float scale=(sx<sy)?sx:sy;
@@ -306,7 +306,7 @@ static void pspBeginFrame(Renderer *renderer, int32_t gameW, int32_t gameH, int3
     renderer->CPortX=0; renderer->CPortY=0; renderer->CPortW=PSP_W; renderer->CPortH=PSP_H;
 }
 static void pspEndFrameInit(Renderer *renderer){(void)renderer;}
-static void pspEndFrameEnd(Renderer *renderer){(void)renderer;pspDiagReport();}
+static void pspEndFrameEnd(Renderer *renderer){(void)renderer; if(g_drawStartUs){g_frameDrawUs+=sceKernelGetSystemTimeWide()-g_drawStartUs;g_drawStartUs=0;} pspDiagReport();}
 static void pspBeginView(Renderer *renderer,int32_t viewX,int32_t viewY,int32_t viewW,int32_t viewH,int32_t portX,int32_t portY,int32_t portW,int32_t portH,float viewAngle){
     (void)viewAngle;
     renderer->CPortX=portX;renderer->CPortY=portY;renderer->CPortW=portW;renderer->CPortH=portH;
