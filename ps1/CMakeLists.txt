@@ -21,10 +21,6 @@ list(FILTER CORE_SOURCES EXCLUDE REGEX ".*/cli/.*")
 set(PS1_SOURCES
     main.c
     platform.c
-    "${UPSTREAM}/noop_renderer.c"
-    "${UPSTREAM}/noop_file_system.c"
-    "${UPSTREAM}/noop_audio_system.c"
-    "${UPSTREAM}/debug_font/debug_font.c"
 )
 
 psn00bsdk_add_executable(butterscotch_ps1 GPREL ${CORE_SOURCES} ${PS1_SOURCES})
