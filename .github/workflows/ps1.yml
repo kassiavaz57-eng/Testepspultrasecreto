@@ -17,6 +17,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Fetch Butterscotch upstream
+        run: |
+          git clone --depth 1 https://github.com/ButterscotchRunner/Butterscotch.git upstream
+
       - name: Build PS1 executable
         run: |
           export PSN00BSDK_LIBS="${PSN00BSDK_LIBS:-/opt/psn00bsdk/lib/libpsn00b}"
