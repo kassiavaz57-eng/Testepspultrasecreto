@@ -22,6 +22,7 @@ static void pspAudioInit(AudioSystem* audio, DataWin* dw, FileSystem* fs) {
     a->base.dw=dw;
     a->channel=sceAudioChReserve(PSP_AUDIO_NEXT_CHANNEL,PSP_AUDIO_FRAMES,PSP_AUDIO_FORMAT_STEREO);
     if(a->channel<0){ logWarn("PSP audio: sceAudioChReserve failed %d\n",a->channel); return; }
+    logInfo("PSP audio: channel=%d rate=44100 frames=%d\n",a->channel,PSP_AUDIO_FRAMES);
     a->mutex=sceKernelCreateSema("psp_audio",0,1,1,NULL);
     a->running=1;
     a->stopRequested=0;
@@ -66,13 +67,15 @@ static int32_t pspPlaySound(AudioSystem* audio,int32_t soundIndex,int32_t priori
     int channels=0,rate=0;
     short* decoded=NULL;
     int frames=stb_vorbis_decode_memory(e->data,(int)e->dataSize,&channels,&rate,&decoded);
-    if(frames<=0 || !decoded){ logWarn("PSP audio: Vorbis decode failed sound=%d\n",soundIndex); free(decoded); return -1; }
+    if(frames<=0 || !decoded){ g_audioDecodeFails++; logWarn("PSP audio: Vorbis decode failed sound=%d\n",soundIndex); free(decoded); return -1; }
+    logInfo("PSP audio: decoded sound=%d frames=%d rate=%d channels=%d\n",soundIndex,frames,rate,channels);
     if(channels!=1 && channels!=2){free(decoded);return -1;}
     sceKernelWaitSema(a->mutex,1,NULL);
     free(a->pcm);
     a->pcm=decoded; a->totalFrames=frames; a->position=0; a->sampleRate=rate; a->channels=channels;
     a->gain=s->volume; a->soundIndex=soundIndex; a->instanceId++;
     sceKernelSignalSema(a->mutex,1);
+    logInfo("PSP audio: started sound=%d instance=%d loop=%d\n",soundIndex,a->instanceId,loop);
     if(a->sampleRate!=44100){
         sceAudioSetChannelDataLen(a->channel,PSP_AUDIO_FRAMES);
         sceAudioChangeChannelConfig(a->channel,PSP_AUDIO_FORMAT_STEREO);
@@ -118,7 +121,7 @@ static AudioSystemVtable g_vt={
 
 static int pspAudioThread(SceSize args,void*argp){
     (void)args;
-    PspAudioSystem*a=(PspAudioSystem*)argp;
+    PspAudioSystem*a=*(PspAudioSystem**)argp;
     static short out[PSP_AUDIO_BUFFER_SAMPLES] __attribute__((aligned(64)));
     while(a->running){
         int localFrames=0, localChannels=2;
