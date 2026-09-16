@@ -26,6 +26,7 @@ jobs:
           s=s.replace("#ifndef __wasi__\n#include <signal.h>", "#if !defined(__wasi__) && !defined(PLATFORM_PS1)\n#include <signal.h>")
           s=s.replace('#include "stb_image_write.h"\n', '#ifndef PLATFORM_PS1\n#include "stb_image_write.h"\n#endif\n')
           s=s.replace("#ifndef _WIN32\n#include <fcntl.h>\n#include <unistd.h>", "#ifndef _WIN32\n#if !defined(PLATFORM_PS1)\n#include <fcntl.h>\n#include <unistd.h>\n#endif")
+          s=s.replace('#include "stb_image_write.h"', '#if !defined(PLATFORM_PS1)\n#include "stb_image_write.h"\n#endif')
           s=s.replace('#include "overlay_file_system.h"\n', '#ifdef USE_OVERLAY_FILE_SYSTEM\n#include "overlay_file_system.h"\n#endif\n')
           s=s.replace('OverlayFileSystem* overlayFs = OverlayFileSystem_create(dataWinDir, savePath);', '#ifdef USE_OVERLAY_FILE_SYSTEM\n        FileSystem* overlayFs = (FileSystem*)OverlayFileSystem_create(dataWinDir, savePath);\n#else\n        FileSystem* overlayFs = NoopFileSystem_create();\n#endif')
           s=s.replace('        OverlayFileSystem_destroy(overlayFs);', '#ifdef USE_OVERLAY_FILE_SYSTEM\n        OverlayFileSystem_destroy((OverlayFileSystem*) overlayFs);\n#else\n        NoopFileSystem_destroy(overlayFs);\n#endif')
