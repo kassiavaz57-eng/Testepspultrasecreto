@@ -79,7 +79,7 @@ static PSPTextureCacheEntry* pspAllocTexture(int pageId,int sx,int sy,int sw,int
     for(int i=0;i<PSP_TEX_CACHE_ENTRIES;i++){
         if(!g_texCache[i].valid){
             PSPTextureCacheEntry *e=&g_texCache[i];
-            e->pixels=(uint8_t*)malloc(bytes);
+            e->pixels=(uint8_t*)calloc(1,bytes);
             if(!e->pixels)return NULL;
             e->valid=1;e->pageId=pageId;e->sx=sx;e->sy=sy;e->sw=sw;e->sh=sh;e->tw=tw;e->th=th;e->bytes=bytes;e->lastUse=++g_texCacheClock;
             g_texCacheBytes+=bytes;
@@ -237,6 +237,20 @@ static void pspSetGuiProjection(Renderer *renderer,int32_t guiW,int32_t guiH,int
 static void pspEndGUI(Renderer *renderer){(void)renderer;}
 
 static void pspDrawSpritePartColor(Renderer *renderer,int32_t tpagIndex,int32_t srcOffX,int32_t srcOffY,int32_t srcW,int32_t srcH,float x,float y,float xscale,float yscale,float angleDeg,float pivotX,float pivotY,uint32_t color1,uint32_t color2,uint32_t color3,uint32_t color4,float alpha){
+    // The PSP GU texture dimensions are capped at 512x512. Split larger GameMaker
+    // source rectangles into native-size pieces instead of dropping them entirely.
+    if(srcW>PSP_TEX_MAX || srcH>PSP_TEX_MAX){
+        for(int cy=0;cy<srcH;cy+=PSP_TEX_MAX){
+            int ch=(srcH-cy>PSP_TEX_MAX)?PSP_TEX_MAX:srcH-cy;
+            for(int cx=0;cx<srcW;cx+=PSP_TEX_MAX){
+                int cw=(srcW-cx>PSP_TEX_MAX)?PSP_TEX_MAX:srcW-cx;
+                pspDrawSpritePartColor(renderer,tpagIndex,srcOffX+cx,srcOffY+cy,cw,ch,
+                    x+cx*xscale,y+cy*yscale,xscale,yscale,angleDeg,pivotX,pivotY,
+                    color1,color2,color3,color4,alpha);
+            }
+        }
+        return;
+    }
     g_drawCalls++;
     DataWin *dw=renderer->dataWin;
     if(!dw||tpagIndex<0||(uint32_t)tpagIndex>=dw->tpag.count)return;
