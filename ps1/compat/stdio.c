@@ -31,12 +31,13 @@ FILE *fopen(const char *path, const char *mode) {
     if (!f) return NULL;
     memset(f, 0, sizeof(FILE));
     ps1_file_init();
+
     if (!CdSearchFile(&f->cd, path)) {
-        if (path[0] != '\') {
+        if (path[0] != '\\') {
             char p[128];
             size_t n = strlen(path);
             if (n > sizeof(p) - 4) { free(f); return NULL; }
-            p[0] = '\';
+            p[0] = '\\';
             memcpy(p + 1, path, n);
             p[n + 1] = ';';
             p[n + 2] = '1';
@@ -47,6 +48,7 @@ FILE *fopen(const char *path, const char *mode) {
             return NULL;
         }
     }
+
     f->size = f->cd.size;
     f->pos = 0;
     f->mode = 0;
