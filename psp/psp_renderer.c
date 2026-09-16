@@ -39,6 +39,8 @@ static PSPTextureCacheEntry g_texCache[PSP_TEX_CACHE_ENTRIES];
 static size_t g_texCacheBytes=0;
 static unsigned long g_texCacheClock=0;
 static unsigned long g_texCacheFrame=0;
+static PSPTextureCacheEntry *g_boundTexture=NULL;
+static int g_boundTw=0,g_boundTh=0;
 static RendererVtable *g_baseVtable=NULL;
 static RendererVtable *g_pspVtable=NULL;
 static int g_guReady=0;
@@ -62,6 +64,7 @@ static void cacheClear(void){
     free(g_cachedPixels);g_cachedPixels=NULL;g_cachedPixelsSize=0;g_cachedPage=-1;g_cachedW=g_cachedH=0;
 }
 static void pspTextureCacheFrameStart(void){
+    g_boundTexture=NULL; g_boundTw=g_boundTh=0;
     // The previous GU display list is finished before the next frame starts.
     // This makes it safe to retire old texture buffers here.
     g_texCacheFrame++;
@@ -143,8 +146,14 @@ static bool uploadRect(DataWin *dw,int pageId,int sx,int sy,int sw,int sh,int *t
      e->initialized=1;
      sceKernelDcacheWritebackInvalidateAll();
  }
- sceGuTexMode(GU_PSM_8888,0,0,GU_FALSE); sceGuTexImage(0,tw,th,tw,e->pixels);
- sceGuTexFunc(GU_TFX_MODULATE,GU_TCC_RGBA); sceGuTexFilter(GU_NEAREST,GU_NEAREST); sceGuTexFlush();
+ if(g_boundTexture!=e || g_boundTw!=tw || g_boundTh!=th){
+     sceGuTexMode(GU_PSM_8888,0,0,GU_FALSE);
+     sceGuTexImage(0,tw,th,tw,e->pixels);
+     sceGuTexFunc(GU_TFX_MODULATE,GU_TCC_RGBA);
+     sceGuTexFilter(GU_NEAREST,GU_NEAREST);
+     sceGuTexFlush();
+     g_boundTexture=e; g_boundTw=tw; g_boundTh=th;
+ }
  *twOut=tw;*thOut=th;*pixelsOut=e->pixels;return true;
 }
 static void drawQuad(float x0,float y0,float x1,float y1,float x2,float y2,float x3,float y3,float u0,float v0,float u1,float v1,uint32_t c0,uint32_t c1,uint32_t c2,uint32_t c3){
