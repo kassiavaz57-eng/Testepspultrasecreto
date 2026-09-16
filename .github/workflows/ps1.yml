@@ -1,0 +1,32 @@
+name: Butterscotch PS1
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - ps1-experiment
+    paths:
+      - "ps1/**"
+      - ".github/workflows/ps1.yml"
+
+jobs:
+  build-ps1:
+    runs-on: ubuntu-latest
+    container:
+      image: luksamuk/psxtoolchain:latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build PS1 executable
+        run: |
+          export PSN00BSDK_LIBS="${PSN00BSDK_LIBS:-/opt/psn00bsdk/lib/libpsn00b}"
+          cmake -S ps1 -B ps1/build -G "Unix Makefiles" -DCMAKE_BUILD_TYPE=Release
+          cmake --build ps1/build -j2
+
+      - name: Package artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: butterscotch-ps1-bootstrap
+          path: |
+            ps1/build/butterscotch_ps1.exe
+            ps1/build/*.elf
