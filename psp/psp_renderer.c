@@ -31,6 +31,7 @@ typedef struct {
     uint8_t *pixels;
     size_t bytes;
     unsigned long lastUse;
+    int initialized;
 } PSPTextureCacheEntry;
 static PSPTextureCacheEntry g_texCache[PSP_TEX_CACHE_ENTRIES];
 static size_t g_texCacheBytes=0;
@@ -85,7 +86,7 @@ static PSPTextureCacheEntry* pspAllocTexture(int pageId,int sx,int sy,int sw,int
             PSPTextureCacheEntry *e=&g_texCache[i];
             e->pixels=(uint8_t*)calloc(1,bytes);
             if(!e->pixels)return NULL;
-            e->valid=1;e->pageId=pageId;e->sx=sx;e->sy=sy;e->sw=sw;e->sh=sh;e->tw=tw;e->th=th;e->bytes=bytes;e->lastUse=++g_texCacheClock;
+            e->valid=1;e->initialized=0;e->pageId=pageId;e->sx=sx;e->sy=sy;e->sw=sw;e->sh=sh;e->tw=tw;e->th=th;e->bytes=bytes;e->lastUse=++g_texCacheClock;
             g_texCacheBytes+=bytes;
             return e;
         }
@@ -119,17 +120,12 @@ static bool uploadRect(DataWin *dw,int pageId,int sx,int sy,int sw,int sh,int *t
  PSPTextureCacheEntry *e=pspFindTexture(pageId,sx,sy,sw,sh);
  if(!e)e=pspAllocTexture(pageId,sx,sy,sw,sh,tw,th);
  if(!e){g_uploadFails++;g_uploadFailLoad++;logWarn("PSP_DIAG CACHE_FULL page=%d sw=%d sh=%d\\n",pageId,sw,sh);return false;}
- if(e->lastUse==g_texCacheClock){
-     // Newly allocated entry: populate it once. Existing entries are stable for the life
-     // of the cached texture and therefore cannot be overwritten while the GE is drawing.
-     if(e->pixels[0]||e->bytes) {
-         bool empty=true; for(size_t k=0;k<e->bytes;k++){ if(e->pixels[k]){empty=false;break;} }
-         if(empty){
-             for(int y=0;y<sh;y++) memcpy(e->pixels+(size_t)y*tw*4,g_cachedPixels+((size_t)(sy+y)*g_cachedW+sx)*4,(size_t)sw*4);
-         }
-     }
+ if(!e->initialized){
+     for(int y=0;y<sh;y++)
+         memcpy(e->pixels+(size_t)y*tw*4,g_cachedPixels+((size_t)(sy+y)*g_cachedW+sx)*4,(size_t)sw*4);
+     e->initialized=1;
+     sceKernelDcacheWritebackInvalidateAll();
  }
- sceKernelDcacheWritebackInvalidateAll();
  sceGuTexMode(GU_PSM_8888,0,0,GU_FALSE); sceGuTexImage(0,tw,th,tw,e->pixels);
  sceGuTexFunc(GU_TFX_MODULATE,GU_TCC_RGBA); sceGuTexFilter(GU_NEAREST,GU_NEAREST); sceGuTexFlush();
  *twOut=tw;*thOut=th;*pixelsOut=e->pixels;return true;
@@ -219,17 +215,19 @@ static void pspEndFrameEnd(Renderer *renderer){(void)renderer;pspDiagReport();ps
 static void pspBeginView(Renderer *renderer,int32_t viewX,int32_t viewY,int32_t viewW,int32_t viewH,int32_t portX,int32_t portY,int32_t portW,int32_t portH,float viewAngle){
     (void)viewAngle;
     renderer->CPortX=portX;renderer->CPortY=portY;renderer->CPortW=portW;renderer->CPortH=portH;
-    // Preserve the GameMaker camera aspect ratio instead of stretching a 4:3 room
-    // directly into the PSP 16:9 framebuffer. This is also the native-feeling
-    // framing used by Undertale: the full room view remains visible with pillarbox bars.
-    // Undertale's logical camera is 320x240. Keep it 1:1 on the PSP rather
-    // than enlarging it to the 480x272 surface, which crops the logical view
-    // and was observed as a persistent zoom.
-    float scale=1.0f;
+    // portW/portH are GameMaker logical viewport dimensions (Undertale uses
+    // 640x480 for a 320x240 view). They are not the physical PSP framebuffer.
+    // Mapping them directly to fitX/fitY shifts the entire view to (160,120)
+    // on a 480x272 screen, leaving only the lower-right portion visible.
+    // Fit the logical camera against the actual PSP framebuffer instead.
+    (void)portX; (void)portY; (void)portW; (void)portH;
+    float sx=(viewW>0)?((float)PSP_W/(float)viewW):1.0f;
+    float sy=(viewH>0)?((float)PSP_H/(float)viewH):1.0f;
+    float scale=(sx<sy)?sx:sy;
     int fitW=(int)floorf((float)viewW*scale+0.5f);
     int fitH=(int)floorf((float)viewH*scale+0.5f);
-    int fitX=portX+(portW-fitW)/2;
-    int fitY=portY+(portH-fitH)/2;
+    int fitX=(PSP_W-fitW)/2;
+    int fitY=(PSP_H-fitH)/2;
     setViewTransform((float)viewX,(float)viewY,(float)viewW,(float)viewH,fitX,fitY,fitW,fitH);
 }
 static void pspEndView(Renderer *renderer){(void)renderer;}
