@@ -2,6 +2,7 @@
 #define PS1_COMPAT_TIME_H
 #include <stdint.h>
 #include <psxetc.h>
+#include <psxapi.h>
 
 #define CLOCK_MONOTONIC 1
 
