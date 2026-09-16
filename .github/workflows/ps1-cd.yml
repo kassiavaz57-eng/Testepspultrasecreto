@@ -42,11 +42,12 @@ jobs:
           XML
           mkdir -p out
           mkpsxiso ps1/cd.xml
-          find . -maxdepth 3 -type f \( -name 'butterscotch_ps1.bin' -o -name 'butterscotch_ps1.cue' \) -print
-          BIN=$(find . -maxdepth 3 -type f -name 'butterscotch_ps1.bin' | head -n1)
-          CUE=$(find . -maxdepth 3 -type f -name 'butterscotch_ps1.cue' | head -n1)
-          test -n "$BIN"
+          find . -type f \( -name '*.bin' -o -name '*.cue' \) -print
+          CUE=$(find . -type f -name 'butterscotch_ps1.cue' | head -n1)
           test -n "$CUE"
+          BIN=$(grep -o 'FILE "[^"]*"' "$CUE" | sed 's/^FILE "//;s/"$//' | head -n1)
+          if [ -z "$BIN" ]; then BIN=$(find . -type f -name '*.bin' | head -n1); else BIN="$(dirname "$CUE")/$BIN"; fi
+          test -f "$BIN"
           cp "$BIN" out/butterscotch_ps1.bin
           cp "$CUE" out/butterscotch_ps1.cue
           ls -lh out/
