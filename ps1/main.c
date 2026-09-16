@@ -22,11 +22,11 @@ static void video_init(void) {
 
 static void draw_test(void) {
     ClearImage(&box, 0, 0, 0);
-    box.x = 32;
-    box.y = 32;
-    box.w = 256;
-    box.h = 176;
-    ClearImage(&box, 0, 0, 0);
+    box.x = 0;
+    box.y = 0;
+    box.w = W;
+    box.h = H;
+    ClearImage(&box, 96, 0, 0);
     DrawSync(0);
     VSync(0);
 }
@@ -34,11 +34,11 @@ static void draw_test(void) {
 int main(void) {
     video_init();
 
-    box.x = 32;
-    box.y = 32;
-    box.w = 256;
-    box.h = 176;
-    ClearImage(&box, 0, 0, 0);
+    box.x = 0;
+    box.y = 0;
+    box.w = W;
+    box.h = H;
+    ClearImage(&box, 96, 0, 0);
 
     for (;;) {
         draw_test();
