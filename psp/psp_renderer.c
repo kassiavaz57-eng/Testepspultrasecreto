@@ -23,6 +23,7 @@
 #define PSP_H 272
 #define PSP_BUF_W 512
 #define PSP_TEX_MAX 512
+#define PSP_TEX_PSM GU_PSM_4444
 typedef struct { float u,v; unsigned int color; float x,y,z; } PSPVertex;
 /* Large enough for Undertale rooms with many sprites/text glyphs; avoids display-list exhaustion/corruption. */
 static unsigned int __attribute__((aligned(16))) g_list[262144/sizeof(unsigned int)];
@@ -46,24 +47,9 @@ static int g_boundTw=0,g_boundTh=0;
 static RendererVtable *g_baseVtable=NULL;
 static RendererVtable *g_pspVtable=NULL;
 static int g_guReady=0;
-#define PSP_DECODE_CACHE_ENTRIES 4
-#define PSP_DECODE_CACHE_BYTES (8u*1024u*1024u)
-typedef struct {
-    int valid;
-    int pageId;
-    int w;
-    int h;
-    uint8_t *pixels;
-    size_t bytes;
-    unsigned long lastUse;
-} PSPDecodedPageCache;
-static PSPDecodedPageCache g_decodeCache[PSP_DECODE_CACHE_ENTRIES];
-static size_t g_decodeCacheBytes=0;
-static unsigned long g_decodeCacheClock=0;
 static uint8_t *g_cachedPixels=NULL;
 static size_t g_cachedPixelsSize=0;
 static int g_cachedPage=-1,g_cachedW=0,g_cachedH=0;
-static int g_cachedExternalOwner=0;
 static unsigned long g_drawCalls=0,g_uploadFails=0,g_uploadFailSize=0,g_uploadFailLoad=0,g_uploadFailBounds=0,g_uploadFailPow2=0,g_lastReportMs=0;
 static unsigned long g_texHits=0,g_texMisses=0,g_texEvictions=0,g_texBinds=0,g_pageDecodes=0;
 static unsigned long long g_pageDecodeUs=0,g_texCopyUs=0;
@@ -118,84 +104,21 @@ static void pspTextureWriteback(const void *ptr, size_t size){
 static void textureCacheDestroy(void){
     for(int i=0;i<PSP_TEX_CACHE_ENTRIES;i++){free(g_texCache[i].pixels);memset(&g_texCache[i],0,sizeof(g_texCache[i]));}
     g_texCacheBytes=0;
-    for(int i=0;i<PSP_DECODE_CACHE_ENTRIES;i++){
-        free(g_decodeCache[i].pixels);
-        memset(&g_decodeCache[i],0,sizeof(g_decodeCache[i]));
-    }
-    g_decodeCacheBytes=0;
 }
 static void cacheClear(void){
-    // Decoded TXTR pages stay resident in the persistent decode cache.
-    // Only clear the "current page" alias; do not free its backing storage.
-    if(g_cachedExternalOwner) free(g_cachedPixels);
-    g_cachedExternalOwner=0;
-    g_cachedPixels=NULL;
-    g_cachedPixelsSize=0;
-    g_cachedPage=-1;
-    g_cachedW=0;
-    g_cachedH=0;
-}
-static PSPDecodedPageCache* pspFindDecodedPage(int pageId){
-    for(int i=0;i<PSP_DECODE_CACHE_ENTRIES;i++){
-        PSPDecodedPageCache *e=&g_decodeCache[i];
-        if(e->valid && e->pageId==pageId){
-            e->lastUse=++g_decodeCacheClock;
-            return e;
-        }
-    }
-    return NULL;
-}
-static PSPDecodedPageCache* pspAllocDecodedPage(int pageId,int w,int h,size_t bytes){
-    if(bytes>PSP_DECODE_CACHE_BYTES)return NULL;
-
-    while(g_decodeCacheBytes+bytes>PSP_DECODE_CACHE_BYTES){
-        int victim=-1;
-        unsigned long oldest=~0UL;
-        for(int i=0;i<PSP_DECODE_CACHE_ENTRIES;i++){
-            PSPDecodedPageCache *e=&g_decodeCache[i];
-            if(e->valid && e->lastUse<oldest){
-                victim=i;
-                oldest=e->lastUse;
-            }
-        }
-        if(victim<0)break;
-        g_decodeCacheBytes-=g_decodeCache[victim].bytes;
-        free(g_decodeCache[victim].pixels);
-        memset(&g_decodeCache[victim],0,sizeof(g_decodeCache[victim]));
-    }
-
-    int slot=-1;
-    for(int i=0;i<PSP_DECODE_CACHE_ENTRIES;i++){
-        if(!g_decodeCache[i].valid){slot=i;break;}
-    }
-    if(slot<0)return NULL;
-
-    PSPDecodedPageCache *e=&g_decodeCache[slot];
-    e->pixels=(uint8_t*)malloc(bytes);
-    if(!e->pixels)return NULL;
-    e->valid=1;
-    e->pageId=pageId;
-    e->w=w;
-    e->h=h;
-    e->bytes=bytes;
-    e->lastUse=++g_decodeCacheClock;
-    g_decodeCacheBytes+=bytes;
-    return e;
+    // Drop only the decoded source page. Cached GU texture copies are independent
+    // buffers and must survive page switches while display lists may still reference them.
+    free(g_cachedPixels);g_cachedPixels=NULL;g_cachedPixelsSize=0;g_cachedPage=-1;g_cachedW=g_cachedH=0;
 }
 static void pspTextureCacheFrameStart(void){
     g_frameStartUs=sceKernelGetSystemTimeWide();
     g_frameCount++;
     g_boundTexture=NULL; g_boundTw=g_boundTh=0;
-    // The previous GU display list is finished before the next frame starts.
-    // This makes it safe to retire old texture buffers.
+    /* Do not expire texture entries by age. Re-decoding/re-uploading an
+       otherwise valid sprite is extremely expensive on the PSP and can cause
+       visible stalls/flicker. Entries are evicted only under actual capacity
+       pressure by pspAllocTexture(). */ 
     g_texCacheFrame++;
-    for(int i=0;i<PSP_TEX_CACHE_ENTRIES;i++){
-        if(g_texCache[i].valid && g_texCache[i].lastFrame+120 < g_texCacheFrame){
-            g_texCacheBytes-=g_texCache[i].bytes;
-            free(g_texCache[i].pixels);
-            memset(&g_texCache[i],0,sizeof(g_texCache[i]));
-        }
-    }
 }
 static PSPTextureCacheEntry* pspFindTexture(int pageId,int sx,int sy,int sw,int sh){
     for(int i=0;i<PSP_TEX_CACHE_ENTRIES;i++){
@@ -210,7 +133,7 @@ static PSPTextureCacheEntry* pspFindTexture(int pageId,int sx,int sy,int sw,int 
     return NULL;
 }
 static PSPTextureCacheEntry* pspAllocTexture(int pageId,int sx,int sy,int sw,int sh,int tw,int th){
-    size_t bytes=(size_t)tw*th*4;
+    size_t bytes=(size_t)tw*th*2;
     if(bytes>PSP_TEX_CACHE_BYTES)return NULL;
     while(g_texCacheBytes+bytes>PSP_TEX_CACHE_BYTES){
         int victim=-1; unsigned long oldest=~0UL;
@@ -247,61 +170,16 @@ static void setViewTransform(float viewX,float viewY,float viewW,float viewH,int
     g_offX=(float)px; g_offY=(float)py;
 }
 static bool loadPage(DataWin *dw,int pageId){
-    if(pageId<0||(uint32_t)pageId>=dw->txtr.count)return false;
-
-    DataWin_loadTxtrIfNeeded(dw,(uint32_t)pageId);
-    Texture *tex=&dw->txtr.textures[pageId];
-    if(!tex->blobData||tex->blobSize==0)return false;
-
-    if(g_cachedPage==pageId && g_cachedPixels)return true;
-
-    PSPDecodedPageCache *cached=pspFindDecodedPage(pageId);
-    if(cached){
-        g_cachedPixels=cached->pixels;
-        g_cachedPixelsSize=cached->bytes;
-        g_cachedPage=cached->pageId;
-        g_cachedW=cached->w;
-        g_cachedH=cached->h;
-        g_cachedExternalOwner=0;
-        return true;
-    }
-
-    cacheClear();
-
-    int w=0,h=0;
-    bool modern=DataWin_isVersionAtLeast(dw,2022,5,0,0);
-    uint64_t decodeStart=sceKernelGetSystemTimeWide();
-    uint8_t *p=ImageDecoder_decodeToRgba(tex->blobData,tex->blobSize,modern,&w,&h);
-    g_pageDecodeUs += sceKernelGetSystemTimeWide()-decodeStart;
-    g_pageDecodes++;
-
-    if(!p||w<=0||h<=0){
-        free(p);
-        return false;
-    }
-
-    size_t bytes=(size_t)w*(size_t)h*4;
-    PSPDecodedPageCache *entry=pspAllocDecodedPage(pageId,w,h,bytes);
-    if(entry){
-        memcpy(entry->pixels,p,bytes);
-        free(p);
-        g_cachedPixels=entry->pixels;
-        g_cachedPixelsSize=entry->bytes;
-        g_cachedPage=entry->pageId;
-        g_cachedW=entry->w;
-        g_cachedH=entry->h;
-        g_cachedExternalOwner=0;
-    }else{
-        // If the page is larger than the persistent budget, keep it alive as
-        // the current page. It will be freed on the next cacheClear/destroy.
-        g_cachedPixels=p;
-        g_cachedPixelsSize=bytes;
-        g_cachedPage=pageId;
-        g_cachedW=w;
-        g_cachedH=h;
-        g_cachedExternalOwner=1;
-    }
-    return true;
+ if(pageId<0||(uint32_t)pageId>=dw->txtr.count)return false;
+ DataWin_loadTxtrIfNeeded(dw,(uint32_t)pageId); Texture *tex=&dw->txtr.textures[pageId];
+ if(!tex->blobData||tex->blobSize==0)return false;
+ if(g_cachedPage==pageId&&g_cachedPixels)return true;
+ cacheClear(); int w=0,h=0; bool modern=DataWin_isVersionAtLeast(dw,2022,5,0,0);
+ uint64_t decodeStart=sceKernelGetSystemTimeWide();
+ uint8_t *p=ImageDecoder_decodeToRgba(tex->blobData,tex->blobSize,modern,&w,&h);
+ g_pageDecodeUs += sceKernelGetSystemTimeWide()-decodeStart;
+ g_pageDecodes++;
+ if(!p||w<=0||h<=0){free(p);return false;} g_cachedPixels=p;g_cachedPixelsSize=(size_t)w*h*4;g_cachedPage=pageId;g_cachedW=w;g_cachedH=h;return true;
 }
 static bool uploadRect(DataWin *dw,int pageId,int sx,int sy,int sw,int sh,int *twOut,int *thOut,const void **pixelsOut){
  if(sw<=0||sh<=0||sw>PSP_TEX_MAX||sh>PSP_TEX_MAX){g_uploadFails++;g_uploadFailSize++;logWarn("PSP_DIAG SIZE page=%d sw=%d sh=%d\\n",pageId,sw,sh);return false;}
@@ -313,8 +191,14 @@ static bool uploadRect(DataWin *dw,int pageId,int sx,int sy,int sw,int sh,int *t
  if(!e){g_uploadFails++;g_uploadFailLoad++;logWarn("PSP_DIAG CACHE_FULL page=%d sw=%d sh=%d\\n",pageId,sw,sh);return false;}
  if(!e->initialized){
      uint64_t copyStart=sceKernelGetSystemTimeWide();
-     for(int y=0;y<sh;y++)
-         memcpy(e->pixels+(size_t)y*tw*4,g_cachedPixels+((size_t)(sy+y)*g_cachedW+sx)*4,(size_t)sw*4);
+     for(int y=0;y<sh;y++){
+         uint16_t *dst=(uint16_t*)(e->pixels+(size_t)y*tw*2);
+         const uint8_t *src=g_cachedPixels+((size_t)(sy+y)*g_cachedW+sx)*4;
+         for(int x=0;x<sw;x++){
+             uint8_t r=src[x*4+0], g=src[x*4+1], b=src[x*4+2], a=src[x*4+3];
+             dst[x]=(uint16_t)(((r>>4)<<12)|((g>>4)<<8)|((b>>4)<<4)|(a>>4));
+         }
+     }
      g_texCopyUs += sceKernelGetSystemTimeWide()-copyStart;
      e->initialized=1;
      pspTextureWriteback(e->pixels,e->bytes);
@@ -377,7 +261,7 @@ static void pspInit(Renderer *renderer, DataWin *dataWin) {
      * per-texture bind path; sceGuTexImage() is the only state that changes
      * from one cached texture to another.
      */
-    sceGuTexMode(GU_PSM_8888,0,0,GU_FALSE);
+    sceGuTexMode(PSP_TEX_PSM,0,0,GU_FALSE);
     sceGuTexFunc(GU_TFX_MODULATE,GU_TCC_RGBA);
     sceGuTexFilter(GU_NEAREST,GU_NEAREST);
     sceGuEnable(GU_BLEND);
@@ -413,7 +297,7 @@ static void pspBeginFrame(Renderer *renderer, int32_t gameW, int32_t gameH, int3
     sceGuStart(GU_DIRECT, g_list);
     sceGuClearColor(GU_RGBA(0,0,0,255));
     sceGuClearDepth(0);
-    sceGuClear(GU_COLOR_BUFFER_BIT);
+    sceGuClear(GU_COLOR_BUFFER_BIT | GU_DEPTH_BUFFER_BIT);
     float sx=(gameW>0)?((float)PSP_W/(float)gameW):1.0f;
     float sy=(gameH>0)?((float)PSP_H/(float)gameH):1.0f;
     float scale=(sx<sy)?sx:sy;
@@ -424,7 +308,7 @@ static void pspBeginFrame(Renderer *renderer, int32_t gameW, int32_t gameH, int3
     renderer->CPortX=0; renderer->CPortY=0; renderer->CPortW=PSP_W; renderer->CPortH=PSP_H;
 }
 static void pspEndFrameInit(Renderer *renderer){(void)renderer;}
-static void pspEndFrameEnd(Renderer *renderer){(void)renderer; if(g_drawStartUs){g_frameDrawUs+=sceKernelGetSystemTimeWide()-g_drawStartUs;g_drawStartUs=0;} pspDiagReport();}
+static void pspEndFrameEnd(Renderer *renderer){(void)renderer;pspDiagReport();}
 static void pspBeginView(Renderer *renderer,int32_t viewX,int32_t viewY,int32_t viewW,int32_t viewH,int32_t portX,int32_t portY,int32_t portW,int32_t portH,float viewAngle){
     (void)viewAngle;
     renderer->CPortX=portX;renderer->CPortY=portY;renderer->CPortW=portW;renderer->CPortH=portH;
