@@ -37,6 +37,19 @@ int main(void){
     // at its lower default clock needlessly throttles the port.
     scePowerSetClockFrequency(333, 333, 166);
     Renderer *renderer = PSPRenderer_create();
+    /* HARD RENDER PROBE: prove that the PSP GU can present a frame before
+       data.win parsing, VM startup, room initialization, or game drawing. */
+    if(renderer){
+        sceGuStart(GU_DIRECT, (void*)0);
+        sceGuClearColor(GU_RGBA(0, 180, 255, 255));
+        sceGuClear(GU_COLOR_BUFFER_BIT);
+        sceGuFinish();
+        sceGuSync(GU_SYNC_FINISH, GU_SYNC_WHAT_DONE);
+        sceDisplayWaitVblankStart();
+        sceGuSwapBuffers();
+        sceKernelDelayThread(500000);
+        if(bootlog){fprintf(bootlog,"BOOT: hard render probe presented\\n");fflush(bootlog);}
+    }
     if(bootlog){fprintf(bootlog,"BOOT: renderer=%p\n",(void*)renderer);fflush(bootlog);}
     FileSystem *fs = PspFileSystem_create(".");
     AudioSystem *audio = (AudioSystem*)PspAudioSystem_create();
