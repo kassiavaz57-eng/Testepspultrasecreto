@@ -42,11 +42,16 @@ jobs:
           XML
           mkdir -p out
           mkpsxiso ps1/cd.xml
-          cp butterscotch_ps1.bin out/butterscotch_ps1.bin
-          cp butterscotch_ps1.cue out/butterscotch_ps1.cue
+          find . -maxdepth 3 -type f \( -name 'butterscotch_ps1.bin' -o -name 'butterscotch_ps1.cue' \) -print
+          BIN=$(find . -maxdepth 3 -type f -name 'butterscotch_ps1.bin' | head -n1)
+          CUE=$(find . -maxdepth 3 -type f -name 'butterscotch_ps1.cue' | head -n1)
+          test -n "$BIN"
+          test -n "$CUE"
+          cp "$BIN" out/butterscotch_ps1.bin
+          cp "$CUE" out/butterscotch_ps1.cue
           ls -lh out/
-          test -f out/butterscotch_ps1.bin
-          test -f out/butterscotch_ps1.cue
+          test -s out/butterscotch_ps1.bin
+          test -s out/butterscotch_ps1.cue
 
       - name: Upload PS1 CD
         uses: actions/upload-artifact@v4
