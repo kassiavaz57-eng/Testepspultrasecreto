@@ -23,6 +23,10 @@ bool platformInit(int32_t reqW, int32_t reqH, const char *title, bool headless) 
 void platformExit(void) {
 }
 
+void platformLog(const char *format, va_list args) {
+    vprintf(format, args);
+}
+
 void platformInitFunctions(Runner *runner) {
     g_runner = runner;
     runner->setCursor = NULL;
