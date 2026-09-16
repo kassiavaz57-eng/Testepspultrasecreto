@@ -21,7 +21,7 @@ static void pspAudioInit(AudioSystem* audio, DataWin* dw, FileSystem* fs) {
     a->base.dw=dw;
     a->channel=sceAudioChReserve(PSP_AUDIO_NEXT_CHANNEL,PSP_AUDIO_FRAMES,PSP_AUDIO_FORMAT_STEREO);
     if(a->channel<0){ logWarn("PSP audio: sceAudioChReserve failed %d\n",a->channel); return; }
-    a->mutex=sceKernelCreateMutex("psp_audio",0,1,NULL);
+    a->mutex=sceKernelCreateSema("psp_audio",0,1,1,NULL);
     a->running=1;
     a->stopRequested=0;
     a->instanceId=PSP_SOUND_INSTANCE_BASE;
@@ -34,7 +34,7 @@ static void pspAudioDestroy(AudioSystem* audio){
     a->running=0;
     if(a->pspThread>=0){ sceKernelWaitThreadEnd(a->pspThread,NULL); sceKernelDeleteThread(a->pspThread); }
     if(a->channel>=0) sceAudioChRelease(a->channel);
-    if(a->mutex>=0) sceKernelDeleteMutex(a->mutex);
+    if(a->mutex>=0) sceKernelDeleteSema(a->mutex);
     free(a->pcm); free(a);
 }
 static void pspAudioUpdate(AudioSystem* audio,float dt){(void)audio;(void)dt;}
@@ -88,12 +88,12 @@ static float pspGetPos(AudioSystem*a,int32_t id){(void)id;PspAudioSystem*x=(PspA
 static void pspSetPos(AudioSystem*a,int32_t id,float sec){(void)id;PspAudioSystem*x=(PspAudioSystem*)a;int p=(int)(sec*x->sampleRate);if(p<0)p=0;if(p>x->totalFrames)p=x->totalFrames;x->position=p;}
 static float pspLength(AudioSystem*a,int32_t id){(void)id;PspAudioSystem*x=(PspAudioSystem*)a;return x->sampleRate?((float)x->totalFrames/(float)x->sampleRate):0.0f;}
 static void pspMaster(AudioSystem*a,float g){((PspAudioSystem*)a)->gain=g;}
-static void pspMasterListener(AudioSystem*a,float g,int id){(void)id;pspMaster(a,g);}
-static void pspChannels(AudioSystem*a,int n){(void)a;(void)n;}
-static void pspGroupLoad(AudioSystem*a,int i){(void)a;(void)i;}
-static bool pspGroupLoaded(AudioSystem*a,int i){(void)a;(void)i;return true;}
+static void pspMasterListener(AudioSystem*a,float g,int32_t id){(void)id;pspMaster(a,g);}
+static void pspChannels(AudioSystem*a,int32_t n){(void)a;(void)n;}
+static void pspGroupLoad(AudioSystem*a,int32_t i){(void)a;(void)i;}
+static bool pspGroupLoaded(AudioSystem*a,int32_t i){(void)a;(void)i;return true;}
 static int32_t pspCreateStream(AudioSystem*a,const char*f){(void)a;(void)f;return -1;}
-static bool pspDestroyStream(AudioSystem*a,int i){(void)a;(void)i;return false;}
+static bool pspDestroyStream(AudioSystem*a,int32_t i){(void)a;(void)i;return false;}
 
 static AudioSystemVtable g_vt={
  pspAudioInit,pspAudioDestroy,pspAudioUpdate,pspPlaySound,pspStopSound,pspStopAll,pspIsPlaying,
