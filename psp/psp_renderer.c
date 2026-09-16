@@ -27,7 +27,7 @@ typedef struct { float u,v; unsigned int color; float x,y,z; } PSPVertex;
 /* Large enough for Undertale rooms with many sprites/text glyphs; avoids display-list exhaustion/corruption. */
 static unsigned int __attribute__((aligned(16))) g_list[262144/sizeof(unsigned int)];
 #define PSP_TEX_CACHE_ENTRIES 128
-#define PSP_TEX_CACHE_BYTES (8u*1024u*1024u)
+#define PSP_TEX_CACHE_BYTES (2u*1024u*1024u)
 typedef struct {
     int valid;
     int pageId, sx, sy, sw, sh, tw, th;
@@ -47,7 +47,7 @@ static RendererVtable *g_baseVtable=NULL;
 static RendererVtable *g_pspVtable=NULL;
 static int g_guReady=0;
 #define PSP_DECODE_CACHE_ENTRIES 4
-#define PSP_DECODE_CACHE_BYTES (8u*1024u*1024u)
+#define PSP_DECODE_CACHE_BYTES (2u*1024u*1024u)
 typedef struct {
     int valid;
     int pageId;
@@ -355,14 +355,17 @@ static void pspInit(Renderer *renderer, DataWin *dataWin) {
 
     void *fb0 = guGetStaticVramBuffer(PSP_BUF_W, PSP_H, GU_PSM_8888);
     void *fb1 = guGetStaticVramBuffer(PSP_BUF_W, PSP_H, GU_PSM_8888);
-    void *zb = guGetStaticVramBuffer(PSP_BUF_W, PSP_H, GU_PSM_4444);
+    /* Depth is disabled by this 2D backend; do not reserve scarce VRAM for it. */
+    void *zb = NULL;
 
+    logInfo("PSP GU: before sceGuInit\\n");
     sceGuInit();
+    logInfo("PSP GU: after sceGuInit\\n");
     pspTextureCacheFrameStart();
     sceGuStart(GU_DIRECT, g_list);
     sceGuDrawBuffer(GU_PSM_8888, fb0, PSP_BUF_W);
     sceGuDispBuffer(PSP_W, PSP_H, fb1, PSP_BUF_W);
-    sceGuDepthBuffer(zb, PSP_BUF_W);
+    sceGuDepthBuffer(zb, 0);
     sceGuOffset(2048 - PSP_W / 2, 2048 - PSP_H / 2);
     sceGuViewport(2048, 2048, PSP_W, PSP_H);
     sceGuDepthRange(65535, 0);
@@ -384,8 +387,12 @@ static void pspInit(Renderer *renderer, DataWin *dataWin) {
     sceGuEnable(GU_BLEND);
     sceGuBlendFunc(GU_ADD, GU_SRC_ALPHA, GU_ONE_MINUS_SRC_ALPHA, 0, 0);
     sceGuFinish();
+    logInfo("PSP GU: setup list finished\\n");
     sceGuSync(GU_SYNC_FINISH, GU_SYNC_WHAT_DONE);
+    logInfo("PSP GU: setup list synced\\n");
+    sceDisplayWaitVblankStart();
     sceGuDisplay(GU_DISPLAY_ON);
+    logInfo("PSP GU: display on\\n");
     g_guReady = 1;
     logInfo("PSP GU renderer initialized\n");
 }
