@@ -24,7 +24,9 @@ void platformExit(void) {
 }
 
 void platformInitFunctions(Runner *runner) {
-    (void)runner;
+    g_runner = runner;
+    runner->setCursor = NULL;
+    runner->currentCursor = GML_CR_DEFAULT;
 }
 
 bool platformGetWindowSize(int32_t *outW, int32_t *outH) {
