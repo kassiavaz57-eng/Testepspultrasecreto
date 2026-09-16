@@ -12,6 +12,7 @@
 #include "gettime.h"
 #include "log.h"
 #include "noop_audio_system.h"
+#include "psp_audio_system.h"
 #include "psp_renderer.h"
 #include "runner.h"
 #include "vm.h"
@@ -23,7 +24,7 @@ static int exit_cb(int a,int b,void*c){(void)a;(void)b;(void)c;sceKernelExitGame
 static int cb_thread(SceSize a,void*b){(void)a;(void)b;int cb=sceKernelCreateCallback("Exit Callback",exit_cb,NULL);if(cb>=0)sceKernelRegisterExitCallback(cb);sceKernelSleepThreadCB();return 0;}
 static void setup_callbacks(void){int t=sceKernelCreateThread("update_thread",cb_thread,0x11,0xFA0,0,NULL);if(t>=0)sceKernelStartThread(t,0,NULL);}
 void platformLog(const logType type,const char*fmt,va_list va){if(type==LOG_TYPE_WARNING)fputs("Warning: ",stdout);else if(type==LOG_TYPE_ERROR)fputs("Error: ",stdout);else if(type==LOG_TYPE_DEBUG)fputs("Debug: ",stdout);vprintf(fmt,va);}
-static bool load_data_win(const char*path,DataWin**out){DataWinParserOptions o={0};o.parseGen8=true;o.parseOptn=true;o.parseLang=true;o.parseExtn=true;o.parseSond=true;o.parseAgrp=true;o.parseSprt=true;o.parseBgnd=true;o.parsePath=true;o.parseScpt=true;o.parseGlob=true;o.parseShdr=true;o.parseFont=true;o.parseTmln=true;o.parseObjt=true;o.parseRoom=true;o.parseTpag=true;o.parseCode=true;o.parseVari=true;o.parseFunc=true;o.parseStrg=true;o.parseTxtr=true;o.parseAudo=false;o.skipLoadingPreciseMasksForNonPreciseSprites=true;o.lazyLoadRooms=true;o.lazyLoadTextures=true;o.lazyLoadAudio=true;o.loadType=DATAWINLOADTYPE_LOAD_PER_CHUNK;*out=DataWin_parse(path,o);return *out!=NULL;}
+static bool load_data_win(const char*path,DataWin**out){DataWinParserOptions o={0};o.parseGen8=true;o.parseOptn=true;o.parseLang=true;o.parseExtn=true;o.parseSond=true;o.parseAgrp=true;o.parseSprt=true;o.parseBgnd=true;o.parsePath=true;o.parseScpt=true;o.parseGlob=true;o.parseShdr=true;o.parseFont=true;o.parseTmln=true;o.parseObjt=true;o.parseRoom=true;o.parseTpag=true;o.parseCode=true;o.parseVari=true;o.parseFunc=true;o.parseStrg=true;o.parseTxtr=true;o.parseAudo=true;o.skipLoadingPreciseMasksForNonPreciseSprites=true;o.lazyLoadRooms=true;o.lazyLoadTextures=true;o.lazyLoadAudio=true;o.loadType=DATAWINLOADTYPE_LOAD_PER_CHUNK;*out=DataWin_parse(path,o);return *out!=NULL;}
 int main(void){
     setup_callbacks();
     // Use the PSP's full supported 333 MHz CPU / 166 MHz bus clock. The current
@@ -32,7 +33,7 @@ int main(void){
     scePowerSetClockFrequency(333, 333, 166);
     Renderer *renderer = PSPRenderer_create();
     FileSystem *fs = PspFileSystem_create(".");
-    AudioSystem *audio = (AudioSystem*)NoopAudioSystem_create();
+    AudioSystem *audio = (AudioSystem*)PspAudioSystem_create();
     DataWin *d=NULL;
     if(!load_data_win("data.win",&d)) sceKernelExitGame();
     VMContext *vm = VM_create(d);
@@ -42,6 +43,7 @@ int main(void){
     sceCtrlSetSamplingCycle(0);
     sceCtrlSetSamplingMode(PSP_CTRL_MODE_ANALOG);
     uint64_t lastFrameUs = sceKernelGetSystemTimeWide();
+    uint64_t framePaceUs = lastFrameUs;
     uint64_t lastDiagUs = lastFrameUs;
     uint64_t framesSinceDiag = 0;
     for(;;){
@@ -69,8 +71,13 @@ int main(void){
     Runner_drawGUI(runner,480,272,gameW,gameH);
     sceGuFinish(); sceGuSync(GU_SYNC_FINISH,GU_SYNC_WHAT_DONE);
     sceDisplayWaitVblankStart();
-    sceDisplayWaitVblankStart();
     sceGuSwapBuffers();
+    // Target 30 Hz without the old double-vblank stall: a slow frame is not
+    // forced to wait for a second vblank and fall straight to ~15 FPS.
+    uint64_t paceNow = sceKernelGetSystemTimeWide();
+    uint64_t frameUs = paceNow - framePaceUs;
+    if (frameUs < 33333ULL) sceKernelDelayThread((SceUInt)(33333ULL - frameUs));
+    framePaceUs = sceKernelGetSystemTimeWide();
     // Match the shared runner loop: consume a queued room change after the frame.
     Runner_handlePendingRoomChange(runner);
     framesSinceDiag++;
