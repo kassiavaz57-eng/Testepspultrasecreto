@@ -25,7 +25,7 @@ jobs:
           s=p.read_text()
           s=s.replace("#ifndef __wasi__\n#include <signal.h>", "#if !defined(__wasi__) && !defined(PLATFORM_PS1)\n#include <signal.h>")
           s=s.replace('#include "stb_image_write.h"\n', '#ifndef PLATFORM_PS1\n#include "stb_image_write.h"\n#endif\n')
-          s=s.replace("#ifndef _WIN32\n#include <fcntl.h>\n#include <unistd.h>", "#if !defined(_WIN32) && !defined(PLATFORM_PS1)\n#include <fcntl.h>\n#include <unistd.h>")
+          s=s.replace("#ifndef _WIN32\n#include <fcntl.h>\n#include <unistd.h>", "#ifndef _WIN32\n#if !defined(PLATFORM_PS1)\n#include <fcntl.h>\n#include <unistd.h>\n#endif")
           p.write_text(s)
           PY
 
