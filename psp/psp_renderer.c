@@ -52,13 +52,29 @@ static int g_cachedPage=-1,g_cachedW=0,g_cachedH=0;
 static unsigned long g_drawCalls=0,g_uploadFails=0,g_uploadFailSize=0,g_uploadFailLoad=0,g_uploadFailBounds=0,g_uploadFailPow2=0,g_lastReportMs=0;
 static unsigned long g_texHits=0,g_texMisses=0,g_texEvictions=0,g_texBinds=0,g_pageDecodes=0;
 static unsigned long long g_pageDecodeUs=0,g_texCopyUs=0;
+
+/* One-second CPU timing breakdown. This is diagnostic only: it does not
+   alter rendering or scheduling. */
+static unsigned long long g_frameLogicUs=0,g_frameDrawUs=0,g_frameSyncUs=0;
+static unsigned long g_frameCount=0;
+static uint64_t g_frameStartUs=0,g_drawStartUs=0;
+static unsigned long g_lastDiagFrame=0;
 static void pspDiagFileReport(void);
 static void pspPerfFileReport(void);
-static void pspDiagReport(void){ unsigned long now=(unsigned long)(sceKernelGetSystemTimeWide()/1000ULL); if(now-g_lastReportMs>=1000){ logInfo("PSP_DIAG draws=%lu fails=%lu size=%lu load=%lu bounds=%lu pow2=%lu\\n",g_drawCalls,g_uploadFails,g_uploadFailSize,g_uploadFailLoad,g_uploadFailBounds,g_uploadFailPow2); pspDiagFileReport(); pspPerfFileReport(); g_drawCalls=g_uploadFails=g_uploadFailSize=g_uploadFailLoad=g_uploadFailBounds=g_uploadFailPow2=0; g_lastReportMs=now; } }
+static void pspDiagReport(void){ unsigned long now=(unsigned long)(sceKernelGetSystemTimeWide()/1000ULL); if(now-g_lastReportMs>=1000){ if(g_drawStartUs){ g_frameDrawUs += sceKernelGetSystemTimeWide()-g_drawStartUs; g_drawStartUs=0; } logInfo("PSP_DIAG draws=%lu fails=%lu size=%lu load=%lu bounds=%lu pow2=%lu\\n",g_drawCalls,g_uploadFails,g_uploadFailSize,g_uploadFailLoad,g_uploadFailBounds,g_uploadFailPow2); pspDiagFileReport(); pspPerfFileReport(); g_drawCalls=g_uploadFails=g_uploadFailSize=g_uploadFailLoad=g_uploadFailBounds=g_uploadFailPow2=0; g_lastReportMs=now; } }
 static FILE *g_diagFile=NULL;
 static void pspDiagFileWrite(const char *fmt,...){ if(!g_diagFile) g_diagFile=fopen("ms0:/PSP/GAME/BUTTERSCOTCH/psp_diag.txt","a"); if(!g_diagFile)return; va_list ap; va_start(ap,fmt); vfprintf(g_diagFile,fmt,ap); va_end(ap); fflush(g_diagFile); }
 static void pspDiagFileReport(void){ pspDiagFileWrite("PSP_DIAG draws=%lu fails=%lu size=%lu load=%lu bounds=%lu pow2=%lu\\n",g_drawCalls,g_uploadFails,g_uploadFailSize,g_uploadFailLoad,g_uploadFailBounds,g_uploadFailPow2); }
-static void pspPerfFileReport(void){ pspDiagFileWrite("PSP_TEXPERF hits=%lu misses=%lu binds=%lu evictions=%lu decodes=%lu decodeUs=%llu copyUs=%llu cacheBytes=%lu\\n",g_texHits,g_texMisses,g_texBinds,g_texEvictions,g_pageDecodes,g_pageDecodeUs,g_texCopyUs,(unsigned long)g_texCacheBytes); g_texHits=g_texMisses=g_texBinds=g_texEvictions=g_pageDecodes=0; g_pageDecodeUs=g_texCopyUs=0; }
+static void pspPerfFileReport(void){
+    pspDiagFileWrite("PSP_TEXPERF hits=%lu misses=%lu binds=%lu evictions=%lu decodes=%lu decodeUs=%llu copyUs=%llu cacheBytes=%lu\\n",
+        g_texHits,g_texMisses,g_texBinds,g_texEvictions,g_pageDecodes,g_pageDecodeUs,g_texCopyUs,(unsigned long)g_texCacheBytes);
+    pspDiagFileWrite("PSP_FRAME frames=%lu logicUs=%llu drawUs=%llu syncUs=%llu\\n",
+        g_frameCount,g_frameLogicUs,g_frameDrawUs,g_frameSyncUs);
+    g_texHits=g_texMisses=g_texBinds=g_texEvictions=g_pageDecodes=0;
+    g_pageDecodeUs=g_texCopyUs=0;
+    g_frameCount=0;
+    g_frameLogicUs=g_frameDrawUs=g_frameSyncUs=0;
+}
 static int nextPow2(int v){int n=1;while(n<v&&n<PSP_TEX_MAX)n<<=1;return n;}
 
 /*
@@ -94,6 +110,8 @@ static void cacheClear(void){
     free(g_cachedPixels);g_cachedPixels=NULL;g_cachedPixelsSize=0;g_cachedPage=-1;g_cachedW=g_cachedH=0;
 }
 static void pspTextureCacheFrameStart(void){
+    g_frameStartUs=sceKernelGetSystemTimeWide();
+    g_frameCount++;
     g_boundTexture=NULL; g_boundTw=g_boundTh=0;
     // The previous GU display list is finished before the next frame starts.
     // This makes it safe to retire old texture buffers here.
@@ -406,6 +424,7 @@ static void pspDrawSpritePartColor(Renderer *renderer,int32_t tpagIndex,int32_t 
         return;
     }
     g_drawCalls++;
+    if(g_drawStartUs==0) g_drawStartUs=sceKernelGetSystemTimeWide();
     DataWin *dw=renderer->dataWin;
     if(!dw||tpagIndex<0||(uint32_t)tpagIndex>=dw->tpag.count)return;
     TexturePageItem *tpag=&dw->tpag.items[tpagIndex];
