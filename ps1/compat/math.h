@@ -6,6 +6,8 @@
 #define NAN (0.0f/0.0f)
 static inline int ps1_isnanf(float x) { return x != x; }
 static inline int ps1_isinff(float x) { return x == INFINITY || x == -INFINITY; }
+static inline double floor(double x) { int64_t i=(int64_t)x; if(x<0.0&&x!=(double)i)--i; return (double)i; }
+static inline double fabs(double x) { return x<0.0?-x:x; }
 static inline float fabsf(float x) { return x < 0.0f ? -x : x; }
 static inline float sqrtf(float x) {
     if (x <= 0.0f) return x == 0.0f ? 0.0f : NAN;
