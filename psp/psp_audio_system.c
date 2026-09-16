@@ -1,5 +1,6 @@
 #include "psp_audio_system.h"
 #include "data_win.h"
+#include "../vendor/stb/vorbis/stb_vorbis.h"
 #include "utils.h"
 #include <pspaudio.h>
 #include <pspkernel.h>
