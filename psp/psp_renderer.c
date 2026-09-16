@@ -46,6 +46,26 @@ static int g_boundTw=0,g_boundTh=0;
 static RendererVtable *g_baseVtable=NULL;
 static RendererVtable *g_pspVtable=NULL;
 static int g_guReady=0;
+/*
+ * Keep a small LRU of decoded TXTR pages. The previous implementation kept
+ * only one decoded page, so alternating between two texture pages forced a
+ * full image decode again. On PSP that can stall the whole frame for hundreds
+ * of milliseconds or more. The decoded-page cache is deliberately small so
+ * the persistent GU texture cache still gets most of the memory budget.
+ */
+#define PSP_DECODED_PAGE_SLOTS 2
+#define PSP_DECODED_PAGE_BYTES (4u*1024u*1024u)
+typedef struct {
+    int valid;
+    int pageId;
+    int w,h;
+    uint8_t *pixels;
+    size_t bytes;
+    unsigned long lastUse;
+} PSPDecodedPage;
+static PSPDecodedPage g_decodedPages[PSP_DECODED_PAGE_SLOTS];
+static size_t g_decodedPageBytes=0;
+static unsigned long g_decodedPageClock=0;
 static uint8_t *g_cachedPixels=NULL;
 static size_t g_cachedPixelsSize=0;
 static int g_cachedPage=-1,g_cachedW=0,g_cachedH=0;
@@ -84,14 +104,71 @@ static void pspTextureWriteback(const void *ptr, size_t size){
     }
 }
 
+static void decodedPageCacheDestroy(void){
+    for(int i=0;i<PSP_DECODED_PAGE_SLOTS;i++){
+        free(g_decodedPages[i].pixels);
+        memset(&g_decodedPages[i],0,sizeof(g_decodedPages[i]));
+    }
+    g_decodedPageBytes=0;
+    g_cachedPixels=NULL;
+    g_cachedPixelsSize=0;
+    g_cachedPage=-1;
+    g_cachedW=g_cachedH=0;
+}
+static PSPDecodedPage *decodedPageFind(int pageId){
+    for(int i=0;i<PSP_DECODED_PAGE_SLOTS;i++){
+        PSPDecodedPage *p=&g_decodedPages[i];
+        if(p->valid&&p->pageId==pageId){
+            p->lastUse=++g_decodedPageClock;
+            g_cachedPixels=p->pixels;
+            g_cachedPixelsSize=p->bytes;
+            g_cachedPage=p->pageId;
+            g_cachedW=p->w;
+            g_cachedH=p->h;
+            return p;
+        }
+    }
+    return NULL;
+}
+static PSPDecodedPage *decodedPageAlloc(int pageId,int w,int h,size_t bytes){
+    if(bytes>PSP_DECODED_PAGE_BYTES)return NULL;
+    int slot=-1;
+    for(int i=0;i<PSP_DECODED_PAGE_SLOTS;i++) if(!g_decodedPages[i].valid){slot=i;break;}
+    if(slot<0){
+        unsigned long oldest=~0UL;
+        for(int i=0;i<PSP_DECODED_PAGE_SLOTS;i++){
+            if(g_decodedPages[i].lastUse<oldest){oldest=g_decodedPages[i].lastUse;slot=i;}
+        }
+        g_decodedPageBytes-=g_decodedPages[slot].bytes;
+        free(g_decodedPages[slot].pixels);
+        memset(&g_decodedPages[slot],0,sizeof(g_decodedPages[slot]));
+    }
+    while(g_decodedPageBytes+bytes>PSP_DECODED_PAGE_BYTES){
+        int victim=-1; unsigned long oldest=~0UL;
+        for(int i=0;i<PSP_DECODED_PAGE_SLOTS;i++){
+            if(g_decodedPages[i].valid&&g_decodedPages[i].lastUse<oldest){victim=i;oldest=g_decodedPages[i].lastUse;}
+        }
+        if(victim<0)return NULL;
+        g_decodedPageBytes-=g_decodedPages[victim].bytes;
+        free(g_decodedPages[victim].pixels);
+        memset(&g_decodedPages[victim],0,sizeof(g_decodedPages[victim]));
+    }
+    PSPDecodedPage *p=&g_decodedPages[slot];
+    p->pixels=(uint8_t*)malloc(bytes);
+    if(!p->pixels)return NULL;
+    p->valid=1;p->pageId=pageId;p->w=w;p->h=h;p->bytes=bytes;p->lastUse=++g_decodedPageClock;
+    g_decodedPageBytes+=bytes;
+    return p;
+}
 static void textureCacheDestroy(void){
     for(int i=0;i<PSP_TEX_CACHE_ENTRIES;i++){free(g_texCache[i].pixels);memset(&g_texCache[i],0,sizeof(g_texCache[i]));}
     g_texCacheBytes=0;
+    decodedPageCacheDestroy();
 }
 static void cacheClear(void){
-    // Drop only the decoded source page. Cached GU texture copies are independent
-    // buffers and must survive page switches while display lists may still reference them.
-    free(g_cachedPixels);g_cachedPixels=NULL;g_cachedPixelsSize=0;g_cachedPage=-1;g_cachedW=g_cachedH=0;
+    /* Keep decoded TXTR pages resident; the GU texture cache owns independent
+       copies, so there is no reason to decode the same source page again. */
+    g_cachedPixels=NULL;g_cachedPixelsSize=0;g_cachedPage=-1;g_cachedW=g_cachedH=0;
 }
 static void pspTextureCacheFrameStart(void){
     g_boundTexture=NULL; g_boundTw=g_boundTh=0;
@@ -157,15 +234,48 @@ static void setViewTransform(float viewX,float viewY,float viewW,float viewH,int
 }
 static bool loadPage(DataWin *dw,int pageId){
  if(pageId<0||(uint32_t)pageId>=dw->txtr.count)return false;
- DataWin_loadTxtrIfNeeded(dw,(uint32_t)pageId); Texture *tex=&dw->txtr.textures[pageId];
+ DataWin_loadTxtrIfNeeded(dw,(uint32_t)pageId);
+ Texture *tex=&dw->txtr.textures[pageId];
  if(!tex->blobData||tex->blobSize==0)return false;
  if(g_cachedPage==pageId&&g_cachedPixels)return true;
- cacheClear(); int w=0,h=0; bool modern=DataWin_isVersionAtLeast(dw,2022,5,0,0);
+
+ PSPDecodedPage *cached=decodedPageFind(pageId);
+ if(cached)return true;
+
+ cacheClear();
+ int w=0,h=0;
+ bool modern=DataWin_isVersionAtLeast(dw,2022,5,0,0);
  uint64_t decodeStart=sceKernelGetSystemTimeWide();
- uint8_t *p=ImageDecoder_decodeToRgba(tex->blobData,tex->blobSize,modern,&w,&h);
+ uint8_t *decoded=ImageDecoder_decodeToRgba(tex->blobData,tex->blobSize,modern,&w,&h);
  g_pageDecodeUs += sceKernelGetSystemTimeWide()-decodeStart;
  g_pageDecodes++;
- if(!p||w<=0||h<=0){free(p);return false;} g_cachedPixels=p;g_cachedPixelsSize=(size_t)w*h*4;g_cachedPage=pageId;g_cachedW=w;g_cachedH=h;return true;
+ if(!decoded||w<=0||h<=0){free(decoded);return false;}
+
+ size_t bytes=(size_t)w*h*4;
+ PSPDecodedPage *slot=decodedPageAlloc(pageId,w,h,bytes);
+ if(slot){
+     memcpy(slot->pixels,decoded,bytes);
+     free(decoded);
+     g_cachedPixels=slot->pixels;
+     g_cachedPixelsSize=slot->bytes;
+     g_cachedPage=pageId;
+     g_cachedW=w;
+     g_cachedH=h;
+     return true;
+ }
+
+ /*
+  * Oversized pages stay as the transient fallback. They are copied into the
+  * persistent per-sprite GU cache below, so correctness is preserved; the
+  * next visit may decode them again because retaining them would exceed the
+  * bounded source-page cache.
+  */
+ g_cachedPixels=decoded;
+ g_cachedPixelsSize=bytes;
+ g_cachedPage=pageId;
+ g_cachedW=w;
+ g_cachedH=h;
+ return true;
 }
 static bool uploadRect(DataWin *dw,int pageId,int sx,int sy,int sw,int sh,int *twOut,int *thOut,const void **pixelsOut){
  if(sw<=0||sh<=0||sw>PSP_TEX_MAX||sh>PSP_TEX_MAX){g_uploadFails++;g_uploadFailSize++;logWarn("PSP_DIAG SIZE page=%d sw=%d sh=%d\\n",pageId,sw,sh);return false;}
