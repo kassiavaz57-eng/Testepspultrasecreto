@@ -13,9 +13,6 @@ typedef struct {
     uint8_t sectorValid;
     uint8_t mode;
 } FILE;
-#define SEEK_SET 0
-#define SEEK_CUR 1
-#define SEEK_END 2
 #define _IOFBF 0
 #define EOF (-1)
 #define stdin ((FILE*)0)
