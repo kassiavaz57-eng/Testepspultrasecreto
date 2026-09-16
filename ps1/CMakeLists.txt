@@ -1,4 +1,5 @@
 cmake_minimum_required(VERSION 3.21)
+set(CMAKE_TOOLCHAIN_FILE "$ENV{PSN00BSDK_LIBS}/cmake/sdk.cmake" CACHE FILEPATH "PSn00bSDK toolchain")
 list(APPEND CMAKE_MODULE_PATH "$ENV{PSN00BSDK_LIBS}/cmake")
 include(sdk)
 project(butterscotch_ps1 LANGUAGES C ASM)
