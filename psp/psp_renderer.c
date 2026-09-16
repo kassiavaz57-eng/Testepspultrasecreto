@@ -68,6 +68,7 @@ static size_t g_decodedPageBytes=0;
 static unsigned long g_decodedPageClock=0;
 static uint8_t *g_cachedPixels=NULL;
 static size_t g_cachedPixelsSize=0;
+static int g_cachedTransient=0;
 static int g_cachedPage=-1,g_cachedW=0,g_cachedH=0;
 static unsigned long g_drawCalls=0,g_uploadFails=0,g_uploadFailSize=0,g_uploadFailLoad=0,g_uploadFailBounds=0,g_uploadFailPow2=0,g_lastReportMs=0;
 static unsigned long g_texHits=0,g_texMisses=0,g_texEvictions=0,g_texBinds=0,g_pageDecodes=0;
@@ -112,6 +113,7 @@ static void decodedPageCacheDestroy(void){
     g_decodedPageBytes=0;
     g_cachedPixels=NULL;
     g_cachedPixelsSize=0;
+    g_cachedTransient=0;
     g_cachedPage=-1;
     g_cachedW=g_cachedH=0;
 }
@@ -122,6 +124,7 @@ static PSPDecodedPage *decodedPageFind(int pageId){
             p->lastUse=++g_decodedPageClock;
             g_cachedPixels=p->pixels;
             g_cachedPixelsSize=p->bytes;
+            g_cachedTransient=0;
             g_cachedPage=p->pageId;
             g_cachedW=p->w;
             g_cachedH=p->h;
@@ -166,9 +169,9 @@ static void textureCacheDestroy(void){
     decodedPageCacheDestroy();
 }
 static void cacheClear(void){
-    /* Keep decoded TXTR pages resident; the GU texture cache owns independent
-       copies, so there is no reason to decode the same source page again. */
-    g_cachedPixels=NULL;g_cachedPixelsSize=0;g_cachedPage=-1;g_cachedW=g_cachedH=0;
+    /* Keep decoded TXTR pages resident; free only an oversized transient page. */
+    if(g_cachedTransient)free(g_cachedPixels);
+    g_cachedPixels=NULL;g_cachedPixelsSize=0;g_cachedTransient=0;g_cachedPage=-1;g_cachedW=g_cachedH=0;
 }
 static void pspTextureCacheFrameStart(void){
     g_boundTexture=NULL; g_boundTw=g_boundTh=0;
