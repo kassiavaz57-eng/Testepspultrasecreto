@@ -45,7 +45,7 @@ replace_once(
         set(VM_OPCODE_PROFILER_DEFAULT OFF)
         set(VM_STUB_LOGS_DEFAULT OFF)
     elseif(PLATFORM STREQUAL "psp")
-        add_compile_definitions(PLATFORM_PSP USE_FLOAT_REALS NO_RVALUE_INT64)\n        set(PLATFORM_LIBRARIES pspuser pspctrl pspgu pspgum pspdisplay psppower)
+        add_compile_definitions(PLATFORM_PSP USE_FLOAT_REALS NO_RVALUE_INT64)\n        set(PLATFORM_LIBRARIES pspuser pspctrl pspgu pspgum pspdisplay psppower pspaudio)
 
         set(VM_GML_PROFILER_DEFAULT OFF)
         set(VM_TRACING_DEFAULT OFF)
@@ -98,7 +98,7 @@ replace_once(
 replace_once(
 'elseif(PLATFORM STREQUAL "ps2")',
 '''elseif(PLATFORM STREQUAL "psp")
-    target_link_libraries(butterscotch PRIVATE pspuser pspctrl pspgu pspgum pspdisplay psppower)
+    target_link_libraries(butterscotch PRIVATE pspuser pspctrl pspgu pspgum pspdisplay psppower pspaudio)
 elseif(PLATFORM STREQUAL "ps2")''',
 'PSP system libraries'
 )
@@ -343,9 +343,11 @@ runner_replace_once(
 runner.write_text(runner_s)
 
 PSP_SRC.mkdir(parents=True, exist_ok=True)
-required = ["psp_main.c", "psp_file_system.c", "psp_file_system.h", "psp_input.c", "psp_input.h", "psp_renderer.c", "psp_renderer.h", "stb_impl.c"]
+required = ["psp_main.c", "psp_file_system.c", "psp_file_system.h", "psp_input.c", "psp_input.h", "psp_renderer.c", "psp_renderer.h", "psp_audio_system.c", "psp_audio_system.h", "stb_impl.c", "stb_vorbis.c"]
 for name in required:
     src = ROOT / name
+    if name == "stb_vorbis.c":
+        src = UPSTREAM / "vendor" / "stb" / "vorbis" / "stb_vorbis.c"
     if not src.exists():
         raise SystemExit(f"Missing PSP source: {src}")
     shutil.copy2(src, PSP_SRC / name)
