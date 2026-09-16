@@ -25,6 +25,8 @@ set(PS1_SOURCES
     platform.c
     compat/stdio.c
     compat/math.c
+    compat/libc.c
+    gettime.c
 )
 
 psn00bsdk_add_executable(butterscotch_ps1 GPREL ${CORE_SOURCES} ${PS1_SOURCES})
