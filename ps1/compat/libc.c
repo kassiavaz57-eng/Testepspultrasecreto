@@ -30,6 +30,7 @@ void qsort(void *base, size_t nmemb, size_t size, int (*compar)(const void *, co
     }
 }
 char *getenv(const char *name) { (void)name; return NULL; }
+double strtod(const char *nptr, char **endptr);
 double atof(const char *s) { return strtod(s, NULL); }
 double strtod(const char *nptr,char **endptr) {
     const char *p=nptr; int sign=1; double v=0.0,scale=0.1;
