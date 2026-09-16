@@ -34,4 +34,6 @@ int fflush(FILE *f);
 int fprintf(FILE *f, const char *fmt, ...);
 int vfprintf(FILE *f, const char *fmt, va_list ap);
 int fputs(const char *s, FILE *f);
+int snprintf(char *str, size_t size, const char *fmt, ...);
+int vsnprintf(char *str, size_t size, const char *fmt, va_list ap);
 #endif
