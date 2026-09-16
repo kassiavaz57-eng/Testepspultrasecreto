@@ -56,7 +56,7 @@ int main(void){
     uint64_t lastDiagUs = lastFrameUs;
     uint64_t framesSinceDiag = 0;
     for(;;){
-    if(bootlog && (pspPerfFrames % 30ULL)==0){fprintf(bootlog,"BOOT: entering frame %llu room=%d\n",(unsigned long long)pspPerfFrames,runner->currentRoomIndex);fflush(bootlog);}
+    if(bootlog && (pspPerfFrames % 30ULL)==0){fprintf(bootlog,"BOOT: frame %llu room=%d\n",(unsigned long long)pspPerfFrames,runner->currentRoomIndex);fflush(bootlog);}
     uint64_t frameStartUs = sceKernelGetSystemTimeWide();
     if(frameStartUs>lastFrameUs){ uint64_t rawFrameUs=frameStartUs-lastFrameUs; if(rawFrameUs<pspPerfFrameMinUs)pspPerfFrameMinUs=rawFrameUs; if(rawFrameUs>pspPerfFrameMaxUs)pspPerfFrameMaxUs=rawFrameUs; }
     uint64_t elapsedUs = frameStartUs - lastFrameUs;
@@ -71,33 +71,37 @@ int main(void){
     PspInput_poll(runner, &pad);
     uint64_t stepStartUs=sceKernelGetSystemTimeWide();
     Runner_step(runner);
-    pspPerfStepUs += sceKernelGetSystemTimeWide()-stepStartUs;
-    if(bootlog){fprintf(bootlog,"FRAME: step\n");fflush(bootlog);}
+    uint64_t stepUs=sceKernelGetSystemTimeWide()-stepStartUs;
+    pspPerfStepUs += stepUs;
     int32_t gameW=(int32_t)d->gen8.defaultWindowWidth, gameH=(int32_t)d->gen8.defaultWindowHeight;
     // The PSP renderer owns a live GU display list. Start the frame before any
     // draw call; unlike the PS2 queue renderer, drawPre cannot run before GU start.
     uint64_t drawStartUs=sceKernelGetSystemTimeWide();
+    uint64_t drawStartUs=sceKernelGetSystemTimeWide();
     Runner_beginFrame(runner,gameW,gameH,480,272,480,272);
-    if(bootlog){fprintf(bootlog,"FRAME: beginFrame\n");fflush(bootlog);}
+    uint64_t preUs=sceKernelGetSystemTimeWide()-drawStartUs;
+    uint64_t viewsStartUs=sceKernelGetSystemTimeWide();
     Runner_drawPre(runner,480,272);
-    if(bootlog){fprintf(bootlog,"FRAME: drawPre\n");fflush(bootlog);}
+    uint64_t preDoneUs=sceKernelGetSystemTimeWide()-viewsStartUs;
+    viewsStartUs=sceKernelGetSystemTimeWide();
     Runner_drawViews(runner,gameW,gameH,false);
-    if(bootlog){fprintf(bootlog,"FRAME: drawViews\n");fflush(bootlog);}
     runner->renderer->vtable->endFrameInit(runner->renderer);
+    uint64_t viewsUs=sceKernelGetSystemTimeWide()-viewsStartUs;
+    uint64_t postStartUs=sceKernelGetSystemTimeWide();
     Runner_drawPost(runner,480,272);
-    if(bootlog){fprintf(bootlog,"FRAME: drawPost\n");fflush(bootlog);}
     runner->renderer->vtable->endFrameEnd(runner->renderer);
+    uint64_t postUs=sceKernelGetSystemTimeWide()-postStartUs;
+    uint64_t guiStartUs=sceKernelGetSystemTimeWide();
     Runner_drawGUI(runner,480,272,gameW,gameH);
-    if(bootlog){fprintf(bootlog,"FRAME: drawGUI\n");fflush(bootlog);}
+    uint64_t guiUs=sceKernelGetSystemTimeWide()-guiStartUs;
     pspPerfDrawUs += sceKernelGetSystemTimeWide()-drawStartUs;
     uint64_t syncStartUs=sceKernelGetSystemTimeWide();
+    uint64_t gpuStartUs=sceKernelGetSystemTimeWide();
     sceGuFinish();
-    if(bootlog){fprintf(bootlog,"FRAME: guFinish\n");fflush(bootlog);}
     sceGuSync(GU_SYNC_FINISH,GU_SYNC_WHAT_DONE);
-    if(bootlog){fprintf(bootlog,"FRAME: guSync\n");fflush(bootlog);}
     pspPerfSyncUs += sceKernelGetSystemTimeWide()-syncStartUs;
+    uint64_t gpuUs=sceKernelGetSystemTimeWide()-gpuStartUs;
     sceDisplayWaitVblankStart();
-    if(bootlog){fprintf(bootlog,"FRAME: vblank\n");fflush(bootlog);}
     sceGuSwapBuffers();
     if(bootlog){fprintf(bootlog,"FRAME: swap\n");fflush(bootlog);}
     // Target 30 Hz without the old double-vblank stall: a slow frame is not
