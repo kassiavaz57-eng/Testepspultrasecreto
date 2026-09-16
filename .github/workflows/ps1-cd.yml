@@ -32,8 +32,6 @@ jobs:
           s=s.replace('#include "debug_font/debug_font.h"\n', '#include "debug_font/debug_font.h"\n#include "noop_file_system.h"\n')
           p.write_text(s)
           PY
-          p.write_text(s)
-          PY
 
       - name: Build real Butterscotch core
         run: |
