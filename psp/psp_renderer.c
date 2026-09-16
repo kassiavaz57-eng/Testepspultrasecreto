@@ -268,9 +268,9 @@ static void pspDrawTextColor(Renderer *renderer,const char *text,float x,float y
         float cursorX=halign;
         float cursorY=valign-(float)font->ascenderOffset+(float)(lineStart==0?0:0);
         int previousLine=0;
-        for(int ls=0, p=0; ls<lineStart; ls++){ if(TextUtils_isNewlineChar(text[ls])) previousLine++; }
+        for(int ls=0; ls<lineStart; ls++){ if(TextUtils_isNewlineChar(text[ls])) previousLine++; }
         cursorY+=(float)previousLine*stride;
-        int pos=0; uint16_t ch=0; bool hasCh=false;
+        int32_t pos=0; uint16_t ch=0; bool hasCh=false;
         if(lineLen>0){ch=TextUtils_decodeUtf8(text+lineStart,lineLen,&pos);hasCh=true;}
         while(hasCh){
             FontGlyph *glyph=TextUtils_findGlyph(font,ch);
