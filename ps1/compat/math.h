@@ -8,6 +8,13 @@ static inline int ps1_isnanf(float x) { return x != x; }
 static inline int ps1_isinff(float x) { return x == INFINITY || x == -INFINITY; }
 static inline double floor(double x) { int64_t i=(int64_t)x; if(x<0.0&&x!=(double)i)--i; return (double)i; }
 static inline double fabs(double x) { return x<0.0?-x:x; }
+static inline double sqrt(double x) { return (double)sqrtf((float)x); }
+static inline double sin(double x) { return (double)sinf((float)x); }
+static inline double cos(double x) { return (double)cosf((float)x); }
+static inline double atan2(double y,double x) { return (double)atan2f((float)y,(float)x); }
+static inline double round(double x) { return x>=0.0?floor(x+0.5):ceil(x-0.5); }
+static inline double fmod(double x,double y) { return y==0.0?NAN:x-floor(x/y)*y; }
+static inline double fabsf_dummy(double x) { return x<0.0?-x:x; }
 static inline float fabsf(float x) { return x < 0.0f ? -x : x; }
 static inline float sqrtf(float x) {
     if (x <= 0.0f) return x == 0.0f ? 0.0f : NAN;
