@@ -354,14 +354,22 @@ static void pspInit(Renderer *renderer, DataWin *dataWin) {
     renderer->drawFont = -1;
     renderer->currentShader = -1;
 
+    /* sceGuInit() must be the first GU call. Allocate the EDRAM buffers
+       only after the GU has initialized its global state. */
+    logInfo("PSP GU: before sceGuInit\\n");
+    int guResult = sceGuInit();
+    logInfo("PSP GU: after sceGuInit result=%d\\n", guResult);
+    if (guResult < 0) {
+        logError("PSP GU: sceGuInit failed (%d)\\n", guResult);
+        return;
+    }
+
     void *fb0 = guGetStaticVramBuffer(PSP_BUF_W, PSP_H, GU_PSM_8888);
     void *fb1 = guGetStaticVramBuffer(PSP_BUF_W, PSP_H, GU_PSM_8888);
-    /* Depth is disabled by this 2D backend; do not reserve scarce VRAM for it. */
+    /* Depth is disabled by this 2D backend; do not reserve scarce EDRAM. */
     void *zb = NULL;
 
-    logInfo("PSP GU: before sceGuInit\\n");
-    sceGuInit();
-    logInfo("PSP GU: after sceGuInit\\n");
+    logInfo("PSP GU: buffers fb0=%p fb1=%p\\n", fb0, fb1);
     pspTextureCacheFrameStart();
     sceGuStart(GU_DIRECT, g_list);
     sceGuDrawBuffer(GU_PSM_8888, fb0, PSP_BUF_W);
