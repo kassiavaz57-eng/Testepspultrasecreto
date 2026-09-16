@@ -24,7 +24,7 @@
 #define PSP_TEX_MAX 512
 typedef struct { float u,v; unsigned int color; float x,y,z; } PSPVertex;
 static unsigned int __attribute__((aligned(16))) g_list[65536/sizeof(unsigned int)];
-#define PSP_TEX_CACHE_ENTRIES 16
+#define PSP_TEX_CACHE_ENTRIES 128
 #define PSP_TEX_CACHE_BYTES (8u*1024u*1024u)
 typedef struct {
     int valid;
