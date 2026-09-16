@@ -31,18 +31,6 @@ target_include_directories(butterscotch_ps1 BEFORE PRIVATE "${CMAKE_CURRENT_LIST
 target_compile_definitions(butterscotch_ps1 PRIVATE
     ENABLE_NOOP_RENDERER
     USE_NOOP_FILE_SYSTEM
-    NO_FMIN
-    NO_FMAX
-    NO_ROUND
-    NO_LOG2
-    NO_LROUND
-    NO_SQRTF
-    NO_FABSF
-    NO_FMODF
-    NO_SINF
-    NO_COSF
-    NO_FLOORF
-    NO_ROUNDF
 )
 target_compile_options(butterscotch_ps1 PRIVATE -ffunction-sections -fdata-sections)
 target_link_options(butterscotch_ps1 PRIVATE -Wl,--gc-sections)
