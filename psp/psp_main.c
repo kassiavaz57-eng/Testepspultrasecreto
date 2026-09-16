@@ -28,20 +28,27 @@ static unsigned long long pspPerfFrames=0,pspPerfFrameMinUs=~0ULL,pspPerfFrameMa
 void platformLog(const logType type,const char*fmt,va_list va){if(type==LOG_TYPE_WARNING)fputs("Warning: ",stdout);else if(type==LOG_TYPE_ERROR)fputs("Error: ",stdout);else if(type==LOG_TYPE_DEBUG)fputs("Debug: ",stdout);vprintf(fmt,va);}
 static bool load_data_win(const char*path,DataWin**out){DataWinParserOptions o={0};o.parseGen8=true;o.parseOptn=true;o.parseLang=true;o.parseExtn=true;o.parseSond=true;o.parseAgrp=true;o.parseSprt=true;o.parseBgnd=true;o.parsePath=true;o.parseScpt=true;o.parseGlob=true;o.parseShdr=true;o.parseFont=true;o.parseTmln=true;o.parseObjt=true;o.parseRoom=true;o.parseTpag=true;o.parseCode=true;o.parseVari=true;o.parseFunc=true;o.parseStrg=true;o.parseTxtr=true;o.parseAudo=true;o.skipLoadingPreciseMasksForNonPreciseSprites=true;o.lazyLoadRooms=true;o.lazyLoadTextures=true;o.lazyLoadAudio=true;o.loadType=DATAWINLOADTYPE_LOAD_PER_CHUNK;*out=DataWin_parse(path,o);return *out!=NULL;}
 int main(void){
+    FILE *bootlog=fopen("ms0:/PSP/GAME/BUTTERSCOTCH/psp_boot.txt","a");
+    if(bootlog){fprintf(bootlog,"BOOT: main\n");fflush(bootlog);}
     setup_callbacks();
     // Use the PSP's full supported 333 MHz CPU / 166 MHz bus clock. The current
     // renderer is CPU-bound (PNG decode + texture uploads), so leaving the PSP
     // at its lower default clock needlessly throttles the port.
     scePowerSetClockFrequency(333, 333, 166);
     Renderer *renderer = PSPRenderer_create();
+    if(bootlog){fprintf(bootlog,"BOOT: renderer=%p\n",(void*)renderer);fflush(bootlog);}
     FileSystem *fs = PspFileSystem_create(".");
     AudioSystem *audio = (AudioSystem*)PspAudioSystem_create();
     DataWin *d=NULL;
-    if(!load_data_win("data.win",&d)) sceKernelExitGame();
+    if(bootlog){fprintf(bootlog,"BOOT: loading data.win\n");fflush(bootlog);}
+    if(!load_data_win("data.win",&d)){if(bootlog){fprintf(bootlog,"BOOT: DATAWIN FAILED\n");fflush(bootlog);fclose(bootlog);} sceKernelExitGame();}
+    if(bootlog){fprintf(bootlog,"BOOT: data.win OK\n");fflush(bootlog);}
     VMContext *vm = VM_create(d);
     Runner *runner=Runner_create(d, vm, renderer, fs, audio, 0);
-    if(!runner) sceKernelExitGame();
+    if(!runner){if(bootlog){fprintf(bootlog,"BOOT: Runner_create FAILED\n");fflush(bootlog);fclose(bootlog);} sceKernelExitGame();}
+    if(bootlog){fprintf(bootlog,"BOOT: Runner_create OK room=%d\n",runner->currentRoomIndex);fflush(bootlog);}
     Runner_initFirstRoom(runner);
+    if(bootlog){fprintf(bootlog,"BOOT: first room initialized room=%d\n",runner->currentRoomIndex);fflush(bootlog);}
     sceCtrlSetSamplingCycle(0);
     sceCtrlSetSamplingMode(PSP_CTRL_MODE_ANALOG);
     uint64_t lastFrameUs = sceKernelGetSystemTimeWide();
@@ -49,6 +56,7 @@ int main(void){
     uint64_t lastDiagUs = lastFrameUs;
     uint64_t framesSinceDiag = 0;
     for(;;){
+    if(bootlog && (pspPerfFrames % 30ULL)==0){fprintf(bootlog,"BOOT: entering frame %llu room=%d\n",(unsigned long long)pspPerfFrames,runner->currentRoomIndex);fflush(bootlog);}
     uint64_t frameStartUs = sceKernelGetSystemTimeWide();
     if(frameStartUs>lastFrameUs){ uint64_t rawFrameUs=frameStartUs-lastFrameUs; if(rawFrameUs<pspPerfFrameMinUs)pspPerfFrameMinUs=rawFrameUs; if(rawFrameUs>pspPerfFrameMaxUs)pspPerfFrameMaxUs=rawFrameUs; }
     uint64_t elapsedUs = frameStartUs - lastFrameUs;
