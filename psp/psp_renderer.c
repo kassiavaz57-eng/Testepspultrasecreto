@@ -412,7 +412,7 @@ static void pspBeginFrame(Renderer *renderer, int32_t gameW, int32_t gameH, int3
     (void)windowW; (void)windowH;
     pspTextureCacheFrameStart();
     sceGuStart(GU_DIRECT, g_list);
-    sceGuClearColor(GU_RGBA(0,0,0,255));
+    sceGuClearColor(GU_RGBA(32,64,96,255));
     sceGuClearDepth(0);
     sceGuClear(GU_COLOR_BUFFER_BIT);
     float sx=(gameW>0)?((float)PSP_W/(float)gameW):1.0f;
