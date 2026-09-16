@@ -304,17 +304,19 @@ static bool loadPage(DataWin *dw,int pageId){
     return true;
 }
 static bool uploadRect(DataWin *dw,int pageId,int sx,int sy,int sw,int sh,int *twOut,int *thOut,const void **pixelsOut){
- if(sw<=0||sh<=0||sw>PSP_TEX_MAX||sh>PSP_TEX_MAX){g_uploadFails++;g_uploadFailSize++;logWarn("PSP_DIAG SIZE page=%d sw=%d sh=%d\\n",pageId,sw,sh);return false;}
+ if(sw<=0||sh<=0){g_uploadFails++;g_uploadFailSize++;logWarn("PSP_DIAG SIZE page=%d sw=%d sh=%d\\n",pageId,sw,sh);return false;}
  if(!loadPage(dw,pageId)){g_uploadFails++;g_uploadFailLoad++;logWarn("PSP_DIAG LOAD page=%d\\n",pageId);return false;}
  if(sx<0||sy<0||sx+sw>g_cachedW||sy+sh>g_cachedH){g_uploadFails++;g_uploadFailBounds++;logWarn("PSP_DIAG BOUNDS page=%d sx=%d sy=%d sw=%d sh=%d cached=%dx%d\\n",pageId,sx,sy,sw,sh,g_cachedW,g_cachedH);return false;}
- int tw=nextPow2(sw),th=nextPow2(sh);if(tw>PSP_TEX_MAX||th>PSP_TEX_MAX){g_uploadFails++;g_uploadFailPow2++;logWarn("PSP_DIAG POW2 page=%d tw=%d th=%d\\n",pageId,tw,th);return false;}
+ int tw=nextPow2(sw),th=nextPow2(sh); if(tw>PSP_TEX_MAX||th>PSP_TEX_MAX){ tw=PSP_TEX_MAX; th=PSP_TEX_MAX; }
  PSPTextureCacheEntry *e=pspFindTexture(pageId,sx,sy,sw,sh);
  if(!e){ g_texMisses++; e=pspAllocTexture(pageId,sx,sy,sw,sh,tw,th); }
  if(!e){g_uploadFails++;g_uploadFailLoad++;logWarn("PSP_DIAG CACHE_FULL page=%d sw=%d sh=%d\\n",pageId,sw,sh);return false;}
  if(!e->initialized){
      uint64_t copyStart=sceKernelGetSystemTimeWide();
-     for(int y=0;y<sh;y++)
-         memcpy(e->pixels+(size_t)y*tw*4,g_cachedPixels+((size_t)(sy+y)*g_cachedW+sx)*4,(size_t)sw*4);
+     for(int y=0;y<sh && y<th;y++) {
+         int copyW=sw; if(copyW>tw) copyW=tw;
+         memcpy(e->pixels+(size_t)y*tw*4,g_cachedPixels+((size_t)(sy+y)*g_cachedW+sx)*4,(size_t)copyW*4);
+     }
      g_texCopyUs += sceKernelGetSystemTimeWide()-copyStart;
      e->initialized=1;
      pspTextureWriteback(e->pixels,e->bytes);
