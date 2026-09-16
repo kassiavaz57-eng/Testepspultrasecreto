@@ -45,6 +45,7 @@ target_compile_definitions(butterscotch_ps1 PRIVATE
     ENABLE_WAD16
     ENABLE_WAD17
     PLATFORM_PS1
+    __wasi__
 )
 target_compile_options(butterscotch_ps1 PRIVATE -ffunction-sections -fdata-sections)
 target_link_options(butterscotch_ps1 PRIVATE -Wl,--gc-sections)
