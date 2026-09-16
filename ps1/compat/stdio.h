@@ -5,6 +5,7 @@
 #include <stdarg.h>
 
 #include <psxcd.h>
+#include <psxapi.h>
 typedef struct {
     CdlFILE cd;
     uint32_t pos;
