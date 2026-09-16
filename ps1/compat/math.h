@@ -4,6 +4,11 @@
 #define M_PI 3.14159265358979323846
 #define INFINITY (1.0f/0.0f)
 #define NAN (0.0f/0.0f)
+static inline float sqrtf(float x);
+static inline float sinf(float x);
+static inline float cosf(float x);
+static inline float atan2f(float y, float x);
+static inline float ceilf(float x);
 static inline int ps1_isnanf(float x) { return x != x; }
 static inline int ps1_isinff(float x) { return x == INFINITY || x == -INFINITY; }
 static inline double floor(double x) { int64_t i=(int64_t)x; if(x<0.0&&x!=(double)i)--i; return (double)i; }
