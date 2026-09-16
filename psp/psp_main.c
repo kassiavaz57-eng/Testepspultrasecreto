@@ -25,6 +25,7 @@ static int cb_thread(SceSize a,void*b){(void)a;(void)b;int cb=sceKernelCreateCal
 static void setup_callbacks(void){int t=sceKernelCreateThread("update_thread",cb_thread,0x11,0xFA0,0,NULL);if(t>=0)sceKernelStartThread(t,0,NULL);}
 static unsigned long long pspPerfStepUs=0,pspPerfDrawUs=0,pspPerfSyncUs=0,pspPerfWaitUs=0;
 static unsigned long long pspPerfFrames=0,pspPerfFrameMinUs=~0ULL,pspPerfFrameMaxUs=0;
+static unsigned long long pspBootLogFrames=0;
 void platformLog(const logType type,const char*fmt,va_list va){if(type==LOG_TYPE_WARNING)fputs("Warning: ",stdout);else if(type==LOG_TYPE_ERROR)fputs("Error: ",stdout);else if(type==LOG_TYPE_DEBUG)fputs("Debug: ",stdout);vprintf(fmt,va);}
 static bool load_data_win(const char*path,DataWin**out){DataWinParserOptions o={0};o.parseGen8=true;o.parseOptn=true;o.parseLang=true;o.parseExtn=true;o.parseSond=true;o.parseAgrp=true;o.parseSprt=true;o.parseBgnd=true;o.parsePath=true;o.parseScpt=true;o.parseGlob=true;o.parseShdr=true;o.parseFont=true;o.parseTmln=true;o.parseObjt=true;o.parseRoom=true;o.parseTpag=true;o.parseCode=true;o.parseVari=true;o.parseFunc=true;o.parseStrg=true;o.parseTxtr=true;o.parseAudo=true;o.skipLoadingPreciseMasksForNonPreciseSprites=true;o.lazyLoadRooms=true;o.lazyLoadTextures=true;o.lazyLoadAudio=true;o.loadType=DATAWINLOADTYPE_LOAD_PER_CHUNK;*out=DataWin_parse(path,o);return *out!=NULL;}
 int main(void){
@@ -56,7 +57,8 @@ int main(void){
     uint64_t lastDiagUs = lastFrameUs;
     uint64_t framesSinceDiag = 0;
     for(;;){
-    if(bootlog && (pspPerfFrames % 30ULL)==0){fprintf(bootlog,"BOOT: frame %llu room=%d\n",(unsigned long long)pspPerfFrames,runner->currentRoomIndex);fflush(bootlog);}
+    pspBootLogFrames++;
+    if(bootlog && (pspBootLogFrames % 120ULL)==0){fprintf(bootlog,"BOOT: frame=%llu room=%d\n",(unsigned long long)pspPerfFrames,runner->currentRoomIndex);fflush(bootlog);}
     uint64_t frameStartUs = sceKernelGetSystemTimeWide();
     if(frameStartUs>lastFrameUs){ uint64_t rawFrameUs=frameStartUs-lastFrameUs; if(rawFrameUs<pspPerfFrameMinUs)pspPerfFrameMinUs=rawFrameUs; if(rawFrameUs>pspPerfFrameMaxUs)pspPerfFrameMaxUs=rawFrameUs; }
     uint64_t elapsedUs = frameStartUs - lastFrameUs;
@@ -101,7 +103,6 @@ int main(void){
     uint64_t gpuUs=sceKernelGetSystemTimeWide()-gpuStartUs;
     sceDisplayWaitVblankStart();
     sceGuSwapBuffers();
-    if(bootlog){fprintf(bootlog,"FRAME: swap\n");fflush(bootlog);}
     // Target 30 Hz without the old double-vblank stall: a slow frame is not
     // forced to wait for a second vblank and fall straight to ~15 FPS.
     uint64_t paceNow = sceKernelGetSystemTimeWide();
@@ -109,7 +110,6 @@ int main(void){
     if (frameUs < 33333ULL) sceKernelDelayThread((SceUInt)(33333ULL - frameUs));
     pspPerfWaitUs += sceKernelGetSystemTimeWide()-paceNow;
     pspPerfFrames++;
-    if(bootlog){fprintf(bootlog,"FRAME: DONE %llu\n",(unsigned long long)pspPerfFrames);fflush(bootlog);}
     framePaceUs = sceKernelGetSystemTimeWide();
     // Match the shared runner loop: consume a queued room change after the frame.
     Runner_handlePendingRoomChange(runner);
