@@ -344,7 +344,7 @@ runner_replace_once(
 runner.write_text(runner_s)
 
 PSP_SRC.mkdir(parents=True, exist_ok=True)
-required = ["psp_main.c", "psp_file_system.c", "psp_file_system.h", "psp_input.c", "psp_input.h", "psp_renderer.c", "psp_renderer.h", "psp_audio_system.c", "psp_audio_system.h", "stb_impl.c", "stb_vorbis.c"]
+required = ["psp_main.c", "psp_file_system.c", "psp_file_system.h", "psp_input.c", "psp_input.h", "psp_renderer.c", "psp_renderer.h", "psp_audio_system.c", "psp_audio_system.h", "stb_impl.c", "stb_vorbis.c", "stb_vorbis.h"]
 for name in required:
     src = ROOT / name
     if name == "stb_vorbis.c":
