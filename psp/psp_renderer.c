@@ -23,7 +23,6 @@
 #define PSP_H 272
 #define PSP_BUF_W 512
 #define PSP_TEX_MAX 512
-#define PSP_TEX_PSM GU_PSM_4444
 typedef struct { float u,v; unsigned int color; float x,y,z; } PSPVertex;
 /* Large enough for Undertale rooms with many sprites/text glyphs; avoids display-list exhaustion/corruption. */
 static unsigned int __attribute__((aligned(16))) g_list[262144/sizeof(unsigned int)];
@@ -114,11 +113,16 @@ static void pspTextureCacheFrameStart(void){
     g_frameStartUs=sceKernelGetSystemTimeWide();
     g_frameCount++;
     g_boundTexture=NULL; g_boundTw=g_boundTh=0;
-    /* Do not expire texture entries by age. Re-decoding/re-uploading an
-       otherwise valid sprite is extremely expensive on the PSP and can cause
-       visible stalls/flicker. Entries are evicted only under actual capacity
-       pressure by pspAllocTexture(). */ 
+    // The previous GU display list is finished before the next frame starts.
+    // This makes it safe to retire old texture buffers.
     g_texCacheFrame++;
+    for(int i=0;i<PSP_TEX_CACHE_ENTRIES;i++){
+        if(g_texCache[i].valid && g_texCache[i].lastFrame+120 < g_texCacheFrame){
+            g_texCacheBytes-=g_texCache[i].bytes;
+            free(g_texCache[i].pixels);
+            memset(&g_texCache[i],0,sizeof(g_texCache[i]));
+        }
+    }
 }
 static PSPTextureCacheEntry* pspFindTexture(int pageId,int sx,int sy,int sw,int sh){
     for(int i=0;i<PSP_TEX_CACHE_ENTRIES;i++){
@@ -133,7 +137,7 @@ static PSPTextureCacheEntry* pspFindTexture(int pageId,int sx,int sy,int sw,int 
     return NULL;
 }
 static PSPTextureCacheEntry* pspAllocTexture(int pageId,int sx,int sy,int sw,int sh,int tw,int th){
-    size_t bytes=(size_t)tw*th*2;
+    size_t bytes=(size_t)tw*th*4;
     if(bytes>PSP_TEX_CACHE_BYTES)return NULL;
     while(g_texCacheBytes+bytes>PSP_TEX_CACHE_BYTES){
         int victim=-1; unsigned long oldest=~0UL;
@@ -191,14 +195,8 @@ static bool uploadRect(DataWin *dw,int pageId,int sx,int sy,int sw,int sh,int *t
  if(!e){g_uploadFails++;g_uploadFailLoad++;logWarn("PSP_DIAG CACHE_FULL page=%d sw=%d sh=%d\\n",pageId,sw,sh);return false;}
  if(!e->initialized){
      uint64_t copyStart=sceKernelGetSystemTimeWide();
-     for(int y=0;y<sh;y++){
-         uint16_t *dst=(uint16_t*)(e->pixels+(size_t)y*tw*2);
-         const uint8_t *src=g_cachedPixels+((size_t)(sy+y)*g_cachedW+sx)*4;
-         for(int x=0;x<sw;x++){
-             uint8_t r=src[x*4+0], g=src[x*4+1], b=src[x*4+2], a=src[x*4+3];
-             dst[x]=(uint16_t)(((r>>4)<<12)|((g>>4)<<8)|((b>>4)<<4)|(a>>4));
-         }
-     }
+     for(int y=0;y<sh;y++)
+         memcpy(e->pixels+(size_t)y*tw*4,g_cachedPixels+((size_t)(sy+y)*g_cachedW+sx)*4,(size_t)sw*4);
      g_texCopyUs += sceKernelGetSystemTimeWide()-copyStart;
      e->initialized=1;
      pspTextureWriteback(e->pixels,e->bytes);
@@ -261,7 +259,7 @@ static void pspInit(Renderer *renderer, DataWin *dataWin) {
      * per-texture bind path; sceGuTexImage() is the only state that changes
      * from one cached texture to another.
      */
-    sceGuTexMode(PSP_TEX_PSM,0,0,GU_FALSE);
+    sceGuTexMode(GU_PSM_8888,0,0,GU_FALSE);
     sceGuTexFunc(GU_TFX_MODULATE,GU_TCC_RGBA);
     sceGuTexFilter(GU_NEAREST,GU_NEAREST);
     sceGuEnable(GU_BLEND);
