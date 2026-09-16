@@ -79,10 +79,9 @@ int main(void){
     uint64_t drawStartUs=sceKernelGetSystemTimeWide();
     uint64_t drawStartUs=sceKernelGetSystemTimeWide();
     Runner_beginFrame(runner,gameW,gameH,480,272,480,272);
-    uint64_t preUs=sceKernelGetSystemTimeWide()-drawStartUs;
     uint64_t viewsStartUs=sceKernelGetSystemTimeWide();
     Runner_drawPre(runner,480,272);
-    uint64_t preDoneUs=sceKernelGetSystemTimeWide()-viewsStartUs;
+    uint64_t preDoneUs=sceKernelGetSystemTimeWide()-drawStartUs;
     viewsStartUs=sceKernelGetSystemTimeWide();
     Runner_drawViews(runner,gameW,gameH,false);
     runner->renderer->vtable->endFrameInit(runner->renderer);
