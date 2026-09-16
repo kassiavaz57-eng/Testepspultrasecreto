@@ -9,6 +9,7 @@
 #include <pspgum.h>
 #include <pspkernel.h>
 #include <psputils.h>
+#include <pspdisplay.h>
 #include <stdlib.h>
 #include <string.h>
 #include <stdint.h>
