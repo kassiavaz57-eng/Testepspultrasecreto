@@ -23,7 +23,18 @@
 #define PSP_TEX_MAX 512
 typedef struct { float u,v; unsigned int color; float x,y,z; } PSPVertex;
 static unsigned int __attribute__((aligned(16))) g_list[65536/sizeof(unsigned int)];
-static unsigned char __attribute__((aligned(16))) g_textureScratch[PSP_TEX_MAX*PSP_TEX_MAX*4];
+#define PSP_TEX_CACHE_ENTRIES 16
+#define PSP_TEX_CACHE_BYTES (8u*1024u*1024u)
+typedef struct {
+    int valid;
+    int pageId, sx, sy, sw, sh, tw, th;
+    uint8_t *pixels;
+    size_t bytes;
+    unsigned long lastUse;
+} PSPTextureCacheEntry;
+static PSPTextureCacheEntry g_texCache[PSP_TEX_CACHE_ENTRIES];
+static size_t g_texCacheBytes=0;
+static unsigned long g_texCacheClock=0;
 static RendererVtable *g_baseVtable=NULL;
 static RendererVtable *g_pspVtable=NULL;
 static int g_guReady=0;
@@ -36,7 +47,47 @@ static FILE *g_diagFile=NULL;
 static void pspDiagFileWrite(const char *fmt,...){ if(!g_diagFile) g_diagFile=fopen("ms0:/PSP/GAME/BUTTERSCOTCH/psp_diag.txt","a"); if(!g_diagFile)return; va_list ap; va_start(ap,fmt); vfprintf(g_diagFile,fmt,ap); va_end(ap); fflush(g_diagFile); }
 static void pspDiagFileReport(void){ pspDiagFileWrite("PSP_DIAG draws=%lu fails=%lu size=%lu load=%lu bounds=%lu pow2=%lu\\n",g_drawCalls,g_uploadFails,g_uploadFailSize,g_uploadFailLoad,g_uploadFailBounds,g_uploadFailPow2); }
 static int nextPow2(int v){int n=1;while(n<v&&n<PSP_TEX_MAX)n<<=1;return n;}
-static void cacheClear(void){free(g_cachedPixels);g_cachedPixels=NULL;g_cachedPixelsSize=0;g_cachedPage=-1;g_cachedW=g_cachedH=0;}
+static void cacheClear(void){
+ free(g_cachedPixels);g_cachedPixels=NULL;g_cachedPixelsSize=0;g_cachedPage=-1;g_cachedW=g_cachedH=0;
+ for(int i=0;i<PSP_TEX_CACHE_ENTRIES;i++){free(g_texCache[i].pixels);memset(&g_texCache[i],0,sizeof(g_texCache[i]));}
+ g_texCacheBytes=0;
+}
+static void pspTextureCacheFrameStart(void){
+    // The previous GU display list is finished before the next frame starts.
+    // This makes it safe to retire old texture buffers here.
+    for(int i=0;i<PSP_TEX_CACHE_ENTRIES;i++){
+        if(g_texCache[i].valid && g_texCache[i].lastUse+120 < g_texCacheClock){
+            g_texCacheBytes-=g_texCache[i].bytes;
+            free(g_texCache[i].pixels);
+            memset(&g_texCache[i],0,sizeof(g_texCache[i]));
+        }
+    }
+}
+static PSPTextureCacheEntry* pspFindTexture(int pageId,int sx,int sy,int sw,int sh){
+    for(int i=0;i<PSP_TEX_CACHE_ENTRIES;i++){
+        PSPTextureCacheEntry *e=&g_texCache[i];
+        if(e->valid&&e->pageId==pageId&&e->sx==sx&&e->sy==sy&&e->sw==sw&&e->sh==sh){
+            e->lastUse=++g_texCacheClock;
+            return e;
+        }
+    }
+    return NULL;
+}
+static PSPTextureCacheEntry* pspAllocTexture(int pageId,int sx,int sy,int sw,int sh,int tw,int th){
+    size_t bytes=(size_t)PSP_TEX_MAX*PSP_TEX_MAX*4;
+    if(g_texCacheBytes+bytes>PSP_TEX_CACHE_BYTES)return NULL;
+    for(int i=0;i<PSP_TEX_CACHE_ENTRIES;i++){
+        if(!g_texCache[i].valid){
+            PSPTextureCacheEntry *e=&g_texCache[i];
+            e->pixels=(uint8_t*)malloc(bytes);
+            if(!e->pixels)return NULL;
+            e->valid=1;e->pageId=pageId;e->sx=sx;e->sy=sy;e->sw=sw;e->sh=sh;e->tw=tw;e->th=th;e->bytes=bytes;e->lastUse=++g_texCacheClock;
+            g_texCacheBytes+=bytes;
+            return e;
+        }
+    }
+    return NULL;
+}
 static uint32_t bgrToGu(uint32_t c,float alpha){unsigned int a=(unsigned int)(alpha*255.0f);if(a>255)a=255;return GU_RGBA(BGR_R(c),BGR_G(c),BGR_B(c),a);}
 static float g_viewX=0.0f,g_viewY=0.0f,g_scaleX=1.0f,g_scaleY=1.0f,g_offX=0.0f,g_offY=0.0f;
 static void setViewTransform(float viewX,float viewY,float viewW,float viewH,int px,int py,int pw,int ph){
@@ -56,16 +107,28 @@ static bool loadPage(DataWin *dw,int pageId){
  uint8_t *p=ImageDecoder_decodeToRgba(tex->blobData,tex->blobSize,modern,&w,&h);
  if(!p||w<=0||h<=0){free(p);return false;} g_cachedPixels=p;g_cachedPixelsSize=(size_t)w*h*4;g_cachedPage=pageId;g_cachedW=w;g_cachedH=h;return true;
 }
-static bool uploadRect(DataWin *dw,int pageId,int sx,int sy,int sw,int sh,int *twOut,int *thOut){
+static bool uploadRect(DataWin *dw,int pageId,int sx,int sy,int sw,int sh,int *twOut,int *thOut,const void **pixelsOut){
  if(sw<=0||sh<=0||sw>PSP_TEX_MAX||sh>PSP_TEX_MAX){g_uploadFails++;g_uploadFailSize++;logWarn("PSP_DIAG SIZE page=%d sw=%d sh=%d\\n",pageId,sw,sh);return false;}
  if(!loadPage(dw,pageId)){g_uploadFails++;g_uploadFailLoad++;logWarn("PSP_DIAG LOAD page=%d\\n",pageId);return false;}
  if(sx<0||sy<0||sx+sw>g_cachedW||sy+sh>g_cachedH){g_uploadFails++;g_uploadFailBounds++;logWarn("PSP_DIAG BOUNDS page=%d sx=%d sy=%d sw=%d sh=%d cached=%dx%d\\n",pageId,sx,sy,sw,sh,g_cachedW,g_cachedH);return false;}
  int tw=nextPow2(sw),th=nextPow2(sh);if(tw>PSP_TEX_MAX||th>PSP_TEX_MAX){g_uploadFails++;g_uploadFailPow2++;logWarn("PSP_DIAG POW2 page=%d tw=%d th=%d\\n",pageId,tw,th);return false;}
- memset(g_textureScratch,0,sizeof(g_textureScratch));
- for(int y=0;y<sh;y++) memcpy(g_textureScratch+(size_t)y*PSP_TEX_MAX*4,g_cachedPixels+((size_t)(sy+y)*g_cachedW+sx)*4,(size_t)sw*4);
- sceKernelDcacheWritebackInvalidateAll(); sceGuTexMode(GU_PSM_8888,0,0,GU_FALSE); sceGuTexImage(0,tw,th,PSP_TEX_MAX,g_textureScratch);
- sceGuTexFunc(GU_TFX_MODULATE,GU_TCC_RGBA); sceGuTexFilter(GU_NEAREST,GU_NEAREST); sceGuTexFlush(); sceGuTexSync();
- *twOut=tw;*thOut=th;return true;
+ PSPTextureCacheEntry *e=pspFindTexture(pageId,sx,sy,sw,sh);
+ if(!e)e=pspAllocTexture(pageId,sx,sy,sw,sh,tw,th);
+ if(!e){g_uploadFails++;g_uploadFailLoad++;logWarn("PSP_DIAG CACHE_FULL page=%d sw=%d sh=%d\\n",pageId,sw,sh);return false;}
+ if(e->lastUse==g_texCacheClock){
+     // Newly allocated entry: populate it once. Existing entries are stable for the life
+     // of the cached texture and therefore cannot be overwritten while the GE is drawing.
+     if(e->pixels[0]||e->bytes) {
+         bool empty=true; for(size_t k=0;k<e->bytes;k++){ if(e->pixels[k]){empty=false;break;} }
+         if(empty){
+             for(int y=0;y<sh;y++) memcpy(e->pixels+(size_t)y*PSP_TEX_MAX*4,g_cachedPixels+((size_t)(sy+y)*g_cachedW+sx)*4,(size_t)sw*4);
+         }
+     }
+ }
+ sceKernelDcacheWritebackInvalidateAll();
+ sceGuTexMode(GU_PSM_8888,0,0,GU_FALSE); sceGuTexImage(0,tw,th,PSP_TEX_MAX,e->pixels);
+ sceGuTexFunc(GU_TFX_MODULATE,GU_TCC_RGBA); sceGuTexFilter(GU_NEAREST,GU_NEAREST); sceGuTexFlush();
+ *twOut=tw;*thOut=th;*pixelsOut=e->pixels;return true;
 }
 static void drawQuad(float x0,float y0,float x1,float y1,float x2,float y2,float x3,float y3,float u0,float v0,float u1,float v1,uint32_t c0,uint32_t c1,uint32_t c2,uint32_t c3){
     float xs[4]={x0,x1,x2,x3},ys[4]={y0,y1,y2,y3};
@@ -137,7 +200,13 @@ static void pspBeginFrame(Renderer *renderer, int32_t gameW, int32_t gameH, int3
     sceGuClearColor(GU_RGBA(0,0,0,255));
     sceGuClearDepth(0);
     sceGuClear(GU_COLOR_BUFFER_BIT | GU_DEPTH_BUFFER_BIT);
-    setViewTransform(0,0,(float)gameW,(float)gameH,0,0,PSP_W,PSP_H);
+    float sx=(gameW>0)?((float)PSP_W/(float)gameW):1.0f;
+    float sy=(gameH>0)?((float)PSP_H/(float)gameH):1.0f;
+    float scale=(sx<sy)?sx:sy;
+    int fitW=(int)floorf((float)gameW*scale+0.5f);
+    int fitH=(int)floorf((float)gameH*scale+0.5f);
+    int fitX=(PSP_W-fitW)/2, fitY=(PSP_H-fitH)/2;
+    setViewTransform(0,0,(float)gameW,(float)gameH,fitX,fitY,fitW,fitH);
     renderer->CPortX=0; renderer->CPortY=0; renderer->CPortW=PSP_W; renderer->CPortH=PSP_H;
 }
 static void pspEndFrameInit(Renderer *renderer){(void)renderer;}
@@ -173,8 +242,8 @@ static void pspDrawSpritePartColor(Renderer *renderer,int32_t tpagIndex,int32_t 
     if(!dw||tpagIndex<0||(uint32_t)tpagIndex>=dw->tpag.count)return;
     TexturePageItem *tpag=&dw->tpag.items[tpagIndex];
     int sx=(int)tpag->sourceX+srcOffX, sy=(int)tpag->sourceY+srcOffY, tw,th;
-    if(!uploadRect(dw,tpag->texturePageId,sx,sy,srcW,srcH,&tw,&th))return;
-    float qx[4]={x,x+srcW*xscale,x+srcW*xscale,x}, qy[4]={y,y,y+srcH*yscale,y+srcH*yscale};
+    const void *texPixels=NULL; if(!uploadRect(dw,tpag->texturePageId,sx,sy,srcW,srcH,&tw,&th,&texPixels))return;
+    (void)texPixels; float qx[4]={x,x+srcW*xscale,x+srcW*xscale,x}, qy[4]={y,y,y+srcH*yscale,y+srcH*yscale};
     if(angleDeg!=0.0f){float a=-angleDeg*((float)M_PI/180.0f),ca=cosf(a),sa=sinf(a);for(int i=0;i<4;i++){float dx=qx[i]-pivotX,dy=qy[i]-pivotY;qx[i]=ca*dx-sa*dy+pivotX;qy[i]=sa*dx+ca*dy+pivotY;}}
     drawQuad(qx[0],qy[0],qx[1],qy[1],qx[2],qy[2],qx[3],qy[3],0,0,(float)srcW,(float)srcH,
         bgrToGu(color1,alpha),bgrToGu(color2,alpha),bgrToGu(color3,alpha),bgrToGu(color4,alpha));
