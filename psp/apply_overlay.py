@@ -163,22 +163,24 @@ if final_link not in s:
     raise SystemExit("ERROR: final target link line changed upstream")
 s = s.replace(final_link, final_link_psp, 1)
 
-# The PSP platform backend is provided by src/psp/psp_platform.c. Do not also
-# compile the generic src/backends/noop.c, because that defines the same platform
-# API and would collide at link time. The NOOP renderer itself remains enabled.
-replace_once(
-'''    if (BACKEND STREQUAL "appkit")
-        target_sources(butterscotch PRIVATE src/backends/${BACKEND}.m)
-    else()
-        target_sources(butterscotch PRIVATE src/backends/${BACKEND}.c)
-    endif()''',
-'''    if (BACKEND STREQUAL "appkit")
-        target_sources(butterscotch PRIVATE src/backends/${BACKEND}.m)
-    elseif(NOT PLATFORM STREQUAL "psp")
-        target_sources(butterscotch PRIVATE src/backends/${BACKEND}.c)
-    endif()''',
-'PSP backend source exclusion'
+# The PSP platform backend is provided by src/psp/psp_platform.c.
+# Do not compile the generic desktop backend for PSP.
+import re
+backend_pattern = re.compile(
+    r'(?ms)^    if \\(BACKEND STREQUAL "appkit"\\)\\n'
+    r'        target_sources\\(butterscotch PRIVATE src/backends/\\\\\\$\\{BACKEND\\}\\.m\\)\\n'
+    r'    else\\(\\)\\n'
+    r'        target_sources\\(butterscotch PRIVATE src/backends/\\\\\\$\\{BACKEND\\}\\.c\\)\\n'
+    r'    endif\\(\\)'
 )
+backend_replacement = '''    if (BACKEND STREQUAL "appkit")
+        target_sources(butterscotch PRIVATE src/backends/\${BACKEND}.m)
+    elseif(NOT PLATFORM STREQUAL "psp")
+        target_sources(butterscotch PRIVATE src/backends/\${BACKEND}.c)
+    endif()'''
+s, n = backend_pattern.subn(backend_replacement, s, count=1)
+if n != 1:
+    raise SystemExit("ERROR: upstream CMakeLists.txt changed; missing PSP backend source exclusion")
 CM.write_text(s)
 
 # Temporary upstream draw-pipeline diagnostics for PSP. Instrumentation only.
