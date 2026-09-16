@@ -30,12 +30,12 @@ psn00bsdk_add_executable(butterscotch_ps1 GPREL ${CORE_SOURCES} ${PS1_SOURCES})
 target_include_directories(butterscotch_ps1 BEFORE PRIVATE
     "${CMAKE_CURRENT_LIST_DIR}/compat"
     "${UPSTREAM}"
-    "${UPSTREAM}/vendor/stb/ds"
-    "${UPSTREAM}/vendor/stb/vorbis"
-    "${UPSTREAM}/vendor/md5"
-    "${UPSTREAM}/vendor/sha1"
-    "${UPSTREAM}/vendor/base64"
-    "${UPSTREAM}/vendor/bzip2"
+    "${CMAKE_CURRENT_LIST_DIR}/../upstream/vendor/stb/ds"
+    "${CMAKE_CURRENT_LIST_DIR}/../upstream/vendor/stb/vorbis"
+    "${CMAKE_CURRENT_LIST_DIR}/../upstream/vendor/md5"
+    "${CMAKE_CURRENT_LIST_DIR}/../upstream/vendor/sha1"
+    "${CMAKE_CURRENT_LIST_DIR}/../upstream/vendor/base64"
+    "${CMAKE_CURRENT_LIST_DIR}/../upstream/vendor/bzip2"
     "${UPSTREAM}/debug_font"
 )
 target_compile_definitions(butterscotch_ps1 PRIVATE
