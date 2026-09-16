@@ -41,10 +41,11 @@ jobs:
           </iso_project>
           XML
           mkdir -p out
-          mkpsxiso ps1/cd.xml out/butterscotch_ps1.bin
-          find . -maxdepth 4 -type f \( -name '*.bin' -o -name '*.cue' \) -print
+          mkpsxiso ps1/cd.xml
+          cp butterscotch_ps1.bin out/butterscotch_ps1.bin
+          cp butterscotch_ps1.cue out/butterscotch_ps1.cue
+          ls -lh out/
           test -f out/butterscotch_ps1.bin
-          find . -maxdepth 4 -name '*.cue' -exec cp {} out/butterscotch_ps1.cue \;
           test -f out/butterscotch_ps1.cue
 
       - name: Upload PS1 CD
