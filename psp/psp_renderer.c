@@ -366,15 +366,26 @@ static void pspInit(Renderer *renderer, DataWin *dataWin) {
 
     void *fb0 = guGetStaticVramBuffer(PSP_BUF_W, PSP_H, GU_PSM_8888);
     void *fb1 = guGetStaticVramBuffer(PSP_BUF_W, PSP_H, GU_PSM_8888);
-    /* Depth is disabled by this 2D backend; do not reserve scarce EDRAM. */
-    void *zb = NULL;
+    /* Keep a real depth buffer: PSPSDK GU buffer setup expects a valid EDRAM
+       address even when depth testing is disabled. */
+    void *zb = guGetStaticVramBuffer(PSP_BUF_W, PSP_H, GU_PSM_4444);
+    if (!fb0 || !fb1 || !zb) {
+        logError("PSP GU: EDRAM allocation failed fb0=%p fb1=%p zb=%p\\n", fb0, fb1, zb);
+        sceGuTerm();
+        return;
+    }
 
     logInfo("PSP GU: buffers fb0=%p fb1=%p\\n", fb0, fb1);
     pspTextureCacheFrameStart();
-    sceGuStart(GU_DIRECT, g_list);
+    int listResult = sceGuStart(GU_DIRECT, g_list);
+    if (listResult < 0) {
+        logError("PSP GU: sceGuStart failed (%d)\\n", listResult);
+        sceGuTerm();
+        return;
+    }
     sceGuDrawBuffer(GU_PSM_8888, fb0, PSP_BUF_W);
     sceGuDispBuffer(PSP_W, PSP_H, fb1, PSP_BUF_W);
-    sceGuDepthBuffer(zb, 0);
+    sceGuDepthBuffer(zb, PSP_BUF_W);
     sceGuOffset(2048 - PSP_W / 2, 2048 - PSP_H / 2);
     sceGuViewport(2048, 2048, PSP_W, PSP_H);
     sceGuDepthRange(65535, 0);
