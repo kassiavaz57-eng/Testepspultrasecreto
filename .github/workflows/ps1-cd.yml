@@ -24,6 +24,7 @@ jobs:
           p=Path("upstream/src/loop.c")
           s=p.read_text()
           s=s.replace("#ifndef __wasi__\n#include <signal.h>", "#if !defined(__wasi__) && !defined(PLATFORM_PS1)\n#include <signal.h>")
+          s=s.replace('#include "stb_image_write.h"\n', '#ifndef PLATFORM_PS1\n#include "stb_image_write.h"\n#endif\n')
           p.write_text(s)
           PY
 
