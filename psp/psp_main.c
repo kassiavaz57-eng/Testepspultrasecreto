@@ -77,7 +77,6 @@ int main(void){
     // The PSP renderer owns a live GU display list. Start the frame before any
     // draw call; unlike the PS2 queue renderer, drawPre cannot run before GU start.
     uint64_t drawStartUs=sceKernelGetSystemTimeWide();
-    uint64_t drawStartUs=sceKernelGetSystemTimeWide();
     Runner_beginFrame(runner,gameW,gameH,480,272,480,272);
     uint64_t viewsStartUs=sceKernelGetSystemTimeWide();
     Runner_drawPre(runner,480,272);
