@@ -30,7 +30,9 @@ for x in ['Runner_create', 'Runner_reset']:
     if x not in h:
         raise SystemExit('ERROR: missing core API: ' + x)
 
-for x in ['Runner_create', 'Runner_step']:
+# PSP main only needs to drive the already-created Runner; construction lives
+# in the platform-neutral runner/loop layer.
+for x in ['Runner_step', 'Runner']:
     if x not in m:
         raise SystemExit('ERROR: missing PSP main integration: ' + x)
 
