@@ -1,110 +1,100 @@
+#include <assert.h>
+#include <stddef.h>
 #include <stdint.h>
 #include <psxgpu.h>
 
-#define W 320
-#define H 240
-#define OT_LEN 16
-#define PACKET_LEN 4096
+#define OT_LENGTH 16
+#define BUFFER_LENGTH 8192
 
 typedef struct {
-    DISPENV disp;
-    DRAWENV draw;
-    uint32_t ot[OT_LEN];
-    uint8_t packet[PACKET_LEN];
+    DISPENV disp_env;
+    DRAWENV draw_env;
+    uint32_t ot[OT_LENGTH];
+    uint8_t buffer[BUFFER_LENGTH];
 } RenderBuffer;
 
 typedef struct {
-    RenderBuffer b[2];
-    uint8_t *next;
-    int active;
+    RenderBuffer buffers[2];
+    uint8_t *next_packet;
+    int active_buffer;
 } RenderContext;
 
-static RenderContext ctx;
+static void setup_context(RenderContext *ctx, int w, int h, int r, int g, int b) {
+    SetDefDrawEnv(&ctx->buffers[0].draw_env, 0, 0, w, h);
+    SetDefDispEnv(&ctx->buffers[0].disp_env, 0, 0, w, h);
+    SetDefDrawEnv(&ctx->buffers[1].draw_env, 0, h, w, h);
+    SetDefDispEnv(&ctx->buffers[1].disp_env, 0, h, w, h);
 
-static void init_video(void) {
-    ResetGraph(0);
+    setRGB0(&ctx->buffers[0].draw_env, r, g, b);
+    setRGB0(&ctx->buffers[1].draw_env, r, g, b);
+    ctx->buffers[0].draw_env.isbg = 1;
+    ctx->buffers[1].draw_env.isbg = 1;
 
-    SetDefDrawEnv(&ctx.b[0].draw, 0, 0, W, H);
-    SetDefDispEnv(&ctx.b[0].disp, 0, 0, W, H);
-    SetDefDrawEnv(&ctx.b[1].draw, 0, H, W, H);
-    SetDefDispEnv(&ctx.b[1].disp, 0, H, W, H);
-
-    setRGB0(&ctx.b[0].draw, 0, 0, 0);
-    setRGB0(&ctx.b[1].draw, 0, 0, 0);
-    ctx.b[0].draw.isbg = 1;
-    ctx.b[1].draw.isbg = 1;
-
-    ctx.active = 0;
-    ctx.next = ctx.b[0].packet;
-    ClearOTagR(ctx.b[0].ot, OT_LEN);
-
+    ctx->active_buffer = 0;
+    ctx->next_packet = ctx->buffers[0].buffer;
+    ClearOTagR(ctx->buffers[0].ot, OT_LENGTH);
     SetDispMask(1);
 }
 
-static void *alloc_prim(int z, int size) {
-    RenderBuffer *rb = &ctx.b[ctx.active];
-    uint8_t *p = ctx.next;
-    addPrim(&rb->ot[z], p);
-    ctx.next += size;
-    return p;
-}
-
-static void render_frame(void) {
-    RenderBuffer *draw = &ctx.b[ctx.active];
-    RenderBuffer *display = &ctx.b[ctx.active ^ 1];
-
-    TILE *t = (TILE *)alloc_prim(1, sizeof(TILE));
-    setTile(t);
-    setXY0(t, 0, 0);
-    setWH(t, W, H);
-    setRGB0(t, 12, 12, 12);
-
-    t = (TILE *)alloc_prim(2, sizeof(TILE));
-    setTile(t);
-    setXY0(t, 4, 4);
-    setWH(t, 28, 28);
-    setRGB0(t, 0, 0, 255);
-
-    t = (TILE *)alloc_prim(2, sizeof(TILE));
-    setTile(t);
-    setXY0(t, W - 32, 4);
-    setWH(t, 28, 28);
-    setRGB0(t, 0, 255, 0);
-
-    t = (TILE *)alloc_prim(2, sizeof(TILE));
-    setTile(t);
-    setXY0(t, 4, H - 32);
-    setWH(t, 28, 28);
-    setRGB0(t, 255, 0, 0);
-
-    t = (TILE *)alloc_prim(2, sizeof(TILE));
-    setTile(t);
-    setXY0(t, W - 32, H - 32);
-    setWH(t, 28, 28);
-    setRGB0(t, 255, 255, 0);
-
-    t = (TILE *)alloc_prim(2, sizeof(TILE));
-    setTile(t);
-    setXY0(t, 156, 116);
-    setWH(t, 8, 8);
-    setRGB0(t, 255, 255, 255);
-
+static void flip_buffers(RenderContext *ctx) {
     DrawSync(0);
     VSync(0);
 
-    PutDispEnv(&display->disp);
-    DrawOTagEnv(&draw->ot[OT_LEN - 1], &draw->draw);
+    RenderBuffer *draw_buffer = &ctx->buffers[ctx->active_buffer];
+    RenderBuffer *disp_buffer = &ctx->buffers[ctx->active_buffer ^ 1];
 
-    ctx.active ^= 1;
-    ctx.next = display->packet;
-    ClearOTagR(display->ot, OT_LEN);
+    PutDispEnv(&disp_buffer->disp_env);
+    DrawOTagEnv(&draw_buffer->ot[OT_LENGTH - 1], &draw_buffer->draw_env);
+
+    ctx->active_buffer ^= 1;
+    ctx->next_packet = disp_buffer->buffer;
+    ClearOTagR(disp_buffer->ot, OT_LENGTH);
 }
 
-int main(void) {
-    init_video();
+static void *new_primitive(RenderContext *ctx, int z, size_t size) {
+    RenderBuffer *buffer = &ctx->buffers[ctx->active_buffer];
+    uint8_t *prim = ctx->next_packet;
+    addPrim(&buffer->ot[z], prim);
+    ctx->next_packet += size;
+    assert(ctx->next_packet <= &buffer->buffer[BUFFER_LENGTH]);
+    return prim;
+}
+
+static void draw_text(RenderContext *ctx, int x, int y, int z, const char *text) {
+    RenderBuffer *buffer = &ctx->buffers[ctx->active_buffer];
+    ctx->next_packet = (uint8_t *)FntSort(&buffer->ot[z], ctx->next_packet, x, y, text);
+    assert(ctx->next_packet <= &buffer->buffer[BUFFER_LENGTH]);
+}
+
+#define SCREEN_XRES 320
+#define SCREEN_YRES 240
+
+int main(int argc, const char **argv) {
+    ResetGraph(0);
+    FntLoad(960, 0);
+
+    RenderContext ctx;
+    setup_context(&ctx, SCREEN_XRES, SCREEN_YRES, 63, 0, 127);
+
+    int x = 0, y = 0;
+    int dx = 1, dy = 1;
 
     for (;;) {
-        render_frame();
+        if (x < 0 || x > SCREEN_XRES - 64) dx = -dx;
+        if (y < 0 || y > SCREEN_YRES - 64) dy = -dy;
+
+        x += dx;
+        y += dy;
+
+        TILE *tile = (TILE *)new_primitive(&ctx, 1, sizeof(TILE));
+        setTile(tile);
+        setXY0(tile, x, y);
+        setWH(tile, 64, 64);
+        setRGB0(tile, 255, 255, 0);
+
+        draw_text(&ctx, 8, 16, 0, "PS1 GPU OK - BUTTERSCOTCH");
+
+        flip_buffers(&ctx);
     }
 
     return 0;
