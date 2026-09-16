@@ -32,11 +32,13 @@ typedef struct {
     uint8_t *pixels;
     size_t bytes;
     unsigned long lastUse;
+    unsigned long lastFrame;
     int initialized;
 } PSPTextureCacheEntry;
 static PSPTextureCacheEntry g_texCache[PSP_TEX_CACHE_ENTRIES];
 static size_t g_texCacheBytes=0;
 static unsigned long g_texCacheClock=0;
+static unsigned long g_texCacheFrame=0;
 static RendererVtable *g_baseVtable=NULL;
 static RendererVtable *g_pspVtable=NULL;
 static int g_guReady=0;
@@ -44,8 +46,9 @@ static uint8_t *g_cachedPixels=NULL;
 static size_t g_cachedPixelsSize=0;
 static int g_cachedPage=-1,g_cachedW=0,g_cachedH=0;
 static unsigned long g_drawCalls=0,g_uploadFails=0,g_uploadFailSize=0,g_uploadFailLoad=0,g_uploadFailBounds=0,g_uploadFailPow2=0,g_lastReportMs=0;
-static void pspDiagReport(void){ unsigned long now=(unsigned long)(sceKernelGetSystemTimeWide()/1000ULL); if(now-g_lastReportMs>=1000){ logInfo("PSP_DIAG draws=%lu fails=%lu size=%lu load=%lu bounds=%lu pow2=%lu\\n",g_drawCalls,g_uploadFails,g_uploadFailSize,g_uploadFailLoad,g_uploadFailBounds,g_uploadFailPow2); g_drawCalls=g_uploadFails=g_uploadFailSize=g_uploadFailLoad=g_uploadFailBounds=g_uploadFailPow2=0; g_lastReportMs=now; } }
+static void pspDiagReport(void){ unsigned long now=(unsigned long)(sceKernelGetSystemTimeWide()/1000ULL); if(now-g_lastReportMs>=1000){ logInfo("PSP_DIAG draws=%lu fails=%lu size=%lu load=%lu bounds=%lu pow2=%lu\\n",g_drawCalls,g_uploadFails,g_uploadFailSize,g_uploadFailLoad,g_uploadFailBounds,g_uploadFailPow2); pspDiagFileReport(); g_drawCalls=g_uploadFails=g_uploadFailSize=g_uploadFailLoad=g_uploadFailBounds=g_uploadFailPow2=0; g_lastReportMs=now; } }
 static FILE *g_diagFile=NULL;
+static void pspDiagFileReport(void);
 static void pspDiagFileWrite(const char *fmt,...){ if(!g_diagFile) g_diagFile=fopen("ms0:/PSP/GAME/BUTTERSCOTCH/psp_diag.txt","a"); if(!g_diagFile)return; va_list ap; va_start(ap,fmt); vfprintf(g_diagFile,fmt,ap); va_end(ap); fflush(g_diagFile); }
 static void pspDiagFileReport(void){ pspDiagFileWrite("PSP_DIAG draws=%lu fails=%lu size=%lu load=%lu bounds=%lu pow2=%lu\\n",g_drawCalls,g_uploadFails,g_uploadFailSize,g_uploadFailLoad,g_uploadFailBounds,g_uploadFailPow2); }
 static int nextPow2(int v){int n=1;while(n<v&&n<PSP_TEX_MAX)n<<=1;return n;}
@@ -61,8 +64,9 @@ static void cacheClear(void){
 static void pspTextureCacheFrameStart(void){
     // The previous GU display list is finished before the next frame starts.
     // This makes it safe to retire old texture buffers here.
+    g_texCacheFrame++;
     for(int i=0;i<PSP_TEX_CACHE_ENTRIES;i++){
-        if(g_texCache[i].valid && g_texCache[i].lastUse+120 < g_texCacheClock){
+        if(g_texCache[i].valid && g_texCache[i].lastFrame+120 < g_texCacheFrame){
             g_texCacheBytes-=g_texCache[i].bytes;
             free(g_texCache[i].pixels);
             memset(&g_texCache[i],0,sizeof(g_texCache[i]));
@@ -74,6 +78,7 @@ static PSPTextureCacheEntry* pspFindTexture(int pageId,int sx,int sy,int sw,int 
         PSPTextureCacheEntry *e=&g_texCache[i];
         if(e->valid&&e->pageId==pageId&&e->sx==sx&&e->sy==sy&&e->sw==sw&&e->sh==sh){
             e->lastUse=++g_texCacheClock;
+            e->lastFrame=g_texCacheFrame;
             return e;
         }
     }
@@ -81,13 +86,24 @@ static PSPTextureCacheEntry* pspFindTexture(int pageId,int sx,int sy,int sw,int 
 }
 static PSPTextureCacheEntry* pspAllocTexture(int pageId,int sx,int sy,int sw,int sh,int tw,int th){
     size_t bytes=(size_t)tw*th*4;
-    if(g_texCacheBytes+bytes>PSP_TEX_CACHE_BYTES)return NULL;
+    if(bytes>PSP_TEX_CACHE_BYTES)return NULL;
+    while(g_texCacheBytes+bytes>PSP_TEX_CACHE_BYTES){
+        int victim=-1; unsigned long oldest=~0UL;
+        for(int i=0;i<PSP_TEX_CACHE_ENTRIES;i++){
+            PSPTextureCacheEntry *e=&g_texCache[i];
+            if(e->valid && e->lastFrame<g_texCacheFrame && e->lastUse<oldest){ victim=i; oldest=e->lastUse; }
+        }
+        if(victim<0)return NULL;
+        g_texCacheBytes-=g_texCache[victim].bytes;
+        free(g_texCache[victim].pixels);
+        memset(&g_texCache[victim],0,sizeof(g_texCache[victim]));
+    }
     for(int i=0;i<PSP_TEX_CACHE_ENTRIES;i++){
         if(!g_texCache[i].valid){
             PSPTextureCacheEntry *e=&g_texCache[i];
             e->pixels=(uint8_t*)calloc(1,bytes);
             if(!e->pixels)return NULL;
-            e->valid=1;e->initialized=0;e->pageId=pageId;e->sx=sx;e->sy=sy;e->sw=sw;e->sh=sh;e->tw=tw;e->th=th;e->bytes=bytes;e->lastUse=++g_texCacheClock;
+            e->valid=1;e->initialized=0;e->pageId=pageId;e->sx=sx;e->sy=sy;e->sw=sw;e->sh=sh;e->tw=tw;e->th=th;e->bytes=bytes;e->lastUse=++g_texCacheClock;e->lastFrame=g_texCacheFrame;
             g_texCacheBytes+=bytes;
             return e;
         }
@@ -214,7 +230,7 @@ static void pspBeginFrame(Renderer *renderer, int32_t gameW, int32_t gameH, int3
     renderer->CPortX=0; renderer->CPortY=0; renderer->CPortW=PSP_W; renderer->CPortH=PSP_H;
 }
 static void pspEndFrameInit(Renderer *renderer){(void)renderer;}
-static void pspEndFrameEnd(Renderer *renderer){(void)renderer;pspDiagReport();pspDiagFileReport();}
+static void pspEndFrameEnd(Renderer *renderer){(void)renderer;pspDiagReport();}
 static void pspBeginView(Renderer *renderer,int32_t viewX,int32_t viewY,int32_t viewW,int32_t viewH,int32_t portX,int32_t portY,int32_t portW,int32_t portH,float viewAngle){
     (void)viewAngle;
     renderer->CPortX=portX;renderer->CPortY=portY;renderer->CPortW=portW;renderer->CPortH=portH;
