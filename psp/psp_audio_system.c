@@ -52,7 +52,7 @@ static void pspAudioDestroy(AudioSystem* audio){
 }
 static void pspAudioUpdate(AudioSystem* audio,float dt){(void)dt;pspAudioDiagReport((PspAudioSystem*)audio);}
 static int32_t pspPlaySound(AudioSystem* audio,int32_t soundIndex,int32_t priority,bool loop){
-    (void)priority;(void)loop;
+    (void)priority;
     PspAudioSystem* a=(PspAudioSystem*)audio;
     g_audioPlayCalls++;
     if(a->channel<0 || soundIndex<0 || (uint32_t)soundIndex>=a->base.dw->sond.count){g_audioBadData++;return -1;}
@@ -72,6 +72,7 @@ static int32_t pspPlaySound(AudioSystem* audio,int32_t soundIndex,int32_t priori
     free(a->pcm);
     a->pcm=decoded; a->totalFrames=frames; a->position=0; a->sampleRate=rate; a->channels=channels;
     a->gain=s->volume; a->soundIndex=soundIndex; a->instanceId++;
+    a->stopRequested=loop?0:1;
     sceKernelSignalSema(a->mutex,1);
     if(a->sampleRate!=44100){
         sceAudioSetChannelDataLen(a->channel,PSP_AUDIO_FRAMES);
@@ -140,6 +141,7 @@ static int pspAudioThread(SceSize args,void*argp){
                 out[i*2]=(short)lv;out[i*2+1]=(short)rv;
             }
             a->position+=localFrames;
+            if(a->position>=a->totalFrames && !a->stopRequested) a->position=0;
         } else memset(out,0,sizeof(out));
         sceKernelSignalSema(a->mutex,1);
         int audioResult=sceAudioOutputBlocking(a->channel,PSP_AUDIO_VOLUME_MAX,out);
