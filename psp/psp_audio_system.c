@@ -12,6 +12,7 @@
 #define PSP_AUDIO_FRAMES 2048
 #define PSP_AUDIO_BUFFER_SAMPLES (PSP_AUDIO_FRAMES * 2)
 #define PSP_SOUND_INSTANCE_BASE 100000
+static volatile unsigned long g_audioPlayCalls=0,g_audioDecodeFails=0,g_audioBadData=0,g_audioOutputFails=0;
 
 static int pspAudioThread(SceSize args, void* argp);
 
@@ -29,6 +30,18 @@ static void pspAudioInit(AudioSystem* audio, DataWin* dw, FileSystem* fs) {
     if(a->pspThread>=0) sceKernelStartThread(a->pspThread,sizeof(a),a);
     logInfo("PSP audio: hardware channel initialized\n");
 }
+static void pspAudioDiagReport(PspAudioSystem* a){
+    static unsigned long last=0;
+    unsigned long now=(unsigned long)(sceKernelGetSystemTimeWide()/1000000ULL);
+    if(now==last)return;
+    last=now;
+    FILE *f=fopen("ms0:/PSP/GAME/BUTTERSCOTCH/psp_diag.txt","a");
+    if(!f)return;
+    fprintf(f,"PSP_AUDIO play=%lu decodeFail=%lu badData=%lu outputFail=%lu channel=%d\\n",
+        g_audioPlayCalls,g_audioDecodeFails,g_audioBadData,g_audioOutputFails,a->channel);
+    fclose(f);
+}
+
 static void pspAudioDestroy(AudioSystem* audio){
     PspAudioSystem* a=(PspAudioSystem*)audio;
     a->running=0;
@@ -37,18 +50,19 @@ static void pspAudioDestroy(AudioSystem* audio){
     if(a->mutex>=0) sceKernelDeleteSema(a->mutex);
     free(a->pcm); free(a);
 }
-static void pspAudioUpdate(AudioSystem* audio,float dt){(void)audio;(void)dt;}
+static void pspAudioUpdate(AudioSystem* audio,float dt){(void)dt;pspAudioDiagReport((PspAudioSystem*)audio);}
 static int32_t pspPlaySound(AudioSystem* audio,int32_t soundIndex,int32_t priority,bool loop){
     (void)priority;(void)loop;
     PspAudioSystem* a=(PspAudioSystem*)audio;
-    if(a->channel<0 || soundIndex<0 || (uint32_t)soundIndex>=a->base.dw->sond.count)return -1;
+    g_audioPlayCalls++;
+    if(a->channel<0 || soundIndex<0 || (uint32_t)soundIndex>=a->base.dw->sond.count){g_audioBadData++;return -1;}
     Sound* s=&a->base.dw->sond.sounds[soundIndex];
     if(s->audioGroup<0)return -1;
     DataWin* group=(s->audioGroup==0)?a->base.dw:NULL;
-    if(!group || s->audioFile<0 || (uint32_t)s->audioFile>=group->audo.count)return -1;
+    if(!group || s->audioFile<0 || (uint32_t)s->audioFile>=group->audo.count){g_audioBadData++;return -1;}
     DataWin_loadAudoIfNeeded(group,(uint32_t)s->audioFile);
     AudioEntry* e=&group->audo.entries[s->audioFile];
-    if(!e->data || !e->dataSize)return -1;
+    if(!e->data || !e->dataSize){g_audioBadData++;return -1;}
     int channels=0,rate=0;
     short* decoded=NULL;
     int frames=stb_vorbis_decode_memory(e->data,(int)e->dataSize,&channels,&rate,&decoded);
@@ -128,7 +142,8 @@ static int pspAudioThread(SceSize args,void*argp){
             a->position+=localFrames;
         } else memset(out,0,sizeof(out));
         sceKernelSignalSema(a->mutex,1);
-        sceAudioOutputBlocking(a->channel,PSP_AUDIO_VOLUME_MAX,out);
+        int audioResult=sceAudioOutputBlocking(a->channel,PSP_AUDIO_VOLUME_MAX,out);
+        if(audioResult<0)g_audioOutputFails++;
     }
     return 0;
 }
