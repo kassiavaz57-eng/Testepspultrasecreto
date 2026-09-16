@@ -74,7 +74,7 @@ static PSPTextureCacheEntry* pspFindTexture(int pageId,int sx,int sy,int sw,int 
     return NULL;
 }
 static PSPTextureCacheEntry* pspAllocTexture(int pageId,int sx,int sy,int sw,int sh,int tw,int th){
-    size_t bytes=(size_t)PSP_TEX_MAX*PSP_TEX_MAX*4;
+    size_t bytes=(size_t)PSP_TEX_MAX*th*4;
     if(g_texCacheBytes+bytes>PSP_TEX_CACHE_BYTES)return NULL;
     for(int i=0;i<PSP_TEX_CACHE_ENTRIES;i++){
         if(!g_texCache[i].valid){
