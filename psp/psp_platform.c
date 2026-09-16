@@ -10,7 +10,7 @@
 #include "psp_input.h"
 #include "gettime.h"
 
-extern Runner *g_runner;
+static Runner *g_runner = NULL;
 
 bool platformInit(int32_t reqW, int32_t reqH, const char *title, bool headless) {
     (void)reqW; (void)reqH; (void)title; (void)headless;
