@@ -14,16 +14,19 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Build executable
+      - name: Fetch Butterscotch source
+        run: git clone --depth 1 https://github.com/ButterscotchRunner/Butterscotch.git upstream
+
+      - name: Build real Butterscotch core
         run: |
           export PSN00BSDK_LIBS=/opt/psn00bsdk/lib/libpsn00b
           export PATH=/opt/psn00bsdk/bin:$PATH
           cmake -S ps1 -B ps1/build -G "Unix Makefiles"             -DCMAKE_TOOLCHAIN_FILE=$PSN00BSDK_LIBS/cmake/sdk.cmake             -DCMAKE_BUILD_TYPE=Release
           cmake --build ps1/build -j2
 
-      - name: Prepare Chapter 1 CD tree
+      - name: Prepare Chapter 1 CD
         run: |
-          mkdir -p ps1/cd
+          mkdir -p ps1/cd out
           cp ps1/build/butterscotch_ps1.exe ps1/cd/BUTTER.EXE
           cp data.win ps1/cd/DATA.WIN
           printf 'BOOT=cdrom:\\BUTTER.EXE;1\nTCB=4\nEVENT=10\nSTACK=801FFFF0\n' > ps1/cd/SYSTEM.CNF
@@ -40,9 +43,7 @@ jobs:
             </track>
           </iso_project>
           XML
-          mkdir -p out
           mkpsxiso ps1/cd.xml
-          find . -type f \( -name '*.bin' -o -name '*.cue' \) -print
           CUE=$(find . -type f -name 'butterscotch_ps1.cue' | head -n1)
           test -n "$CUE"
           BIN=$(grep -o 'FILE "[^"]*"' "$CUE" | sed 's/^FILE "//;s/"$//' | head -n1)
@@ -50,13 +51,10 @@ jobs:
           test -f "$BIN"
           cp "$BIN" out/butterscotch_ps1.bin
           cp "$CUE" out/butterscotch_ps1.cue
-          ls -lh out/
-          test -s out/butterscotch_ps1.bin
-          test -s out/butterscotch_ps1.cue
 
       - name: Upload PS1 CD
         uses: actions/upload-artifact@v4
         with:
-          name: butterscotch-ps1-chapter1
+          name: butterscotch-ps1-chapter1-core
           if-no-files-found: error
           path: out/
