@@ -107,6 +107,31 @@ elseif(PLATFORM STREQUAL "ps2")''',
 # crash-signal handler in the shared loop; the VM loop itself remains intact.
 loop = UPSTREAM / "src" / "loop.c"
 loop_s = loop.read_text()
+
+# The PSP build keeps BACKEND=noop to avoid desktop GL, but uses the native
+# PSP GU renderer for actual presentation.
+loop_include_old = '#include "noop_renderer.h"\n'
+loop_include_new = '#include "noop_renderer.h"\n#ifdef PLATFORM_PSP\n#include "psp_renderer.h"\n#endif\n'
+if loop_include_old not in loop_s:
+    raise SystemExit("ERROR: loop.c changed upstream; missing renderer include")
+loop_s = loop_s.replace(loop_include_old, loop_include_new, 1)
+
+renderer_old = '''        if (!renderer) {
+            logError("Failed to initialize a renderer\\n");'''
+renderer_new = '''#ifdef PLATFORM_PSP
+        if (gfx == NOOP) {
+            Renderer* pspRenderer = PSPRenderer_create();
+            if (pspRenderer != nullptr)
+                renderer = pspRenderer;
+        }
+#endif
+
+        if (!renderer) {
+            logError("Failed to initialize a renderer\\n");'''
+if renderer_old not in loop_s:
+    raise SystemExit("ERROR: loop.c changed upstream; missing renderer selection")
+loop_s = loop_s.replace(renderer_old, renderer_new, 1)
+
 replace_loop = "#if !defined(_WIN32) && !defined(PLATFORM_VITA) && !defined(__SWITCH__) && !defined(__wasi__)"
 if replace_loop not in loop_s:
     raise SystemExit("ERROR: loop.c crash-handler guard changed upstream")
@@ -344,7 +369,7 @@ runner_replace_once(
 runner.write_text(runner_s)
 
 PSP_SRC.mkdir(parents=True, exist_ok=True)
-required = ["psp_main.c", "psp_file_system.c", "psp_file_system.h", "psp_input.c", "psp_input.h", "psp_renderer.c", "psp_renderer.h", "psp_audio_system.c", "psp_audio_system.h", "stb_impl.c", "stb_vorbis.c", "stb_vorbis.h"]
+required = ["psp_main.c", "psp_platform.c", "psp_file_system.c", "psp_file_system.h", "psp_input.c", "psp_input.h", "psp_renderer.c", "psp_renderer.h", "psp_audio_system.c", "psp_audio_system.h", "stb_impl.c", "stb_vorbis.c", "stb_vorbis.h"]
 for name in required:
     src = ROOT / name
     if name == "stb_vorbis.c":
