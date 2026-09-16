@@ -78,7 +78,7 @@ static PSPTextureCacheEntry* pspFindTexture(int pageId,int sx,int sy,int sw,int 
     return NULL;
 }
 static PSPTextureCacheEntry* pspAllocTexture(int pageId,int sx,int sy,int sw,int sh,int tw,int th){
-    size_t bytes=(size_t)PSP_TEX_MAX*th*4;
+    size_t bytes=(size_t)tw*th*4;
     if(g_texCacheBytes+bytes>PSP_TEX_CACHE_BYTES)return NULL;
     for(int i=0;i<PSP_TEX_CACHE_ENTRIES;i++){
         if(!g_texCache[i].valid){
@@ -125,12 +125,12 @@ static bool uploadRect(DataWin *dw,int pageId,int sx,int sy,int sw,int sh,int *t
      if(e->pixels[0]||e->bytes) {
          bool empty=true; for(size_t k=0;k<e->bytes;k++){ if(e->pixels[k]){empty=false;break;} }
          if(empty){
-             for(int y=0;y<sh;y++) memcpy(e->pixels+(size_t)y*PSP_TEX_MAX*4,g_cachedPixels+((size_t)(sy+y)*g_cachedW+sx)*4,(size_t)sw*4);
+             for(int y=0;y<sh;y++) memcpy(e->pixels+(size_t)y*tw*4,g_cachedPixels+((size_t)(sy+y)*g_cachedW+sx)*4,(size_t)sw*4);
          }
      }
  }
  sceKernelDcacheWritebackInvalidateAll();
- sceGuTexMode(GU_PSM_8888,0,0,GU_FALSE); sceGuTexImage(0,tw,th,PSP_TEX_MAX,e->pixels);
+ sceGuTexMode(GU_PSM_8888,0,0,GU_FALSE); sceGuTexImage(0,tw,th,tw,e->pixels);
  sceGuTexFunc(GU_TFX_MODULATE,GU_TCC_RGBA); sceGuTexFilter(GU_NEAREST,GU_NEAREST); sceGuTexFlush();
  *twOut=tw;*thOut=th;*pixelsOut=e->pixels;return true;
 }
