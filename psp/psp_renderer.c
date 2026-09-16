@@ -47,10 +47,14 @@ static FILE *g_diagFile=NULL;
 static void pspDiagFileWrite(const char *fmt,...){ if(!g_diagFile) g_diagFile=fopen("ms0:/PSP/GAME/BUTTERSCOTCH/psp_diag.txt","a"); if(!g_diagFile)return; va_list ap; va_start(ap,fmt); vfprintf(g_diagFile,fmt,ap); va_end(ap); fflush(g_diagFile); }
 static void pspDiagFileReport(void){ pspDiagFileWrite("PSP_DIAG draws=%lu fails=%lu size=%lu load=%lu bounds=%lu pow2=%lu\\n",g_drawCalls,g_uploadFails,g_uploadFailSize,g_uploadFailLoad,g_uploadFailBounds,g_uploadFailPow2); }
 static int nextPow2(int v){int n=1;while(n<v&&n<PSP_TEX_MAX)n<<=1;return n;}
+static void textureCacheDestroy(void){
+    for(int i=0;i<PSP_TEX_CACHE_ENTRIES;i++){free(g_texCache[i].pixels);memset(&g_texCache[i],0,sizeof(g_texCache[i]));}
+    g_texCacheBytes=0;
+}
 static void cacheClear(void){
- free(g_cachedPixels);g_cachedPixels=NULL;g_cachedPixelsSize=0;g_cachedPage=-1;g_cachedW=g_cachedH=0;
- for(int i=0;i<PSP_TEX_CACHE_ENTRIES;i++){free(g_texCache[i].pixels);memset(&g_texCache[i],0,sizeof(g_texCache[i]));}
- g_texCacheBytes=0;
+    // Drop only the decoded source page. Cached GU texture copies are independent
+    // buffers and must survive page switches while display lists may still reference them.
+    free(g_cachedPixels);g_cachedPixels=NULL;g_cachedPixelsSize=0;g_cachedPage=-1;g_cachedW=g_cachedH=0;
 }
 static void pspTextureCacheFrameStart(void){
     // The previous GU display list is finished before the next frame starts.
@@ -180,6 +184,7 @@ static void pspInit(Renderer *renderer, DataWin *dataWin) {
 
 static void pspDestroy(Renderer *renderer) {
     cacheClear();
+    textureCacheDestroy();
     if (g_guReady) {
         sceGuFinish();
         sceGuSync(GU_SYNC_FINISH, GU_SYNC_WHAT_DONE);
@@ -217,9 +222,10 @@ static void pspBeginView(Renderer *renderer,int32_t viewX,int32_t viewY,int32_t 
     // Preserve the GameMaker camera aspect ratio instead of stretching a 4:3 room
     // directly into the PSP 16:9 framebuffer. This is also the native-feeling
     // framing used by Undertale: the full room view remains visible with pillarbox bars.
-    float sx=(viewW>0)?((float)portW/(float)viewW):1.0f;
-    float sy=(viewH>0)?((float)portH/(float)viewH):1.0f;
-    float scale=(sx<sy)?sx:sy;
+    // Undertale's logical camera is 320x240. Keep it 1:1 on the PSP rather
+    // than enlarging it to the 480x272 surface, which crops the logical view
+    // and was observed as a persistent zoom.
+    float scale=1.0f;
     int fitW=(int)floorf((float)viewW*scale+0.5f);
     int fitH=(int)floorf((float)viewH*scale+0.5f);
     int fitX=portX+(portW-fitW)/2;
