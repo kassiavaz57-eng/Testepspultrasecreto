@@ -8,6 +8,7 @@
 #include <pspgu.h>
 #include <pspgum.h>
 #include <pspkernel.h>
+#include <psputils.h>
 #include <stdlib.h>
 #include <string.h>
 #include <stdint.h>
@@ -58,6 +59,30 @@ static void pspDiagFileWrite(const char *fmt,...){ if(!g_diagFile) g_diagFile=fo
 static void pspDiagFileReport(void){ pspDiagFileWrite("PSP_DIAG draws=%lu fails=%lu size=%lu load=%lu bounds=%lu pow2=%lu\\n",g_drawCalls,g_uploadFails,g_uploadFailSize,g_uploadFailLoad,g_uploadFailBounds,g_uploadFailPow2); }
 static void pspPerfFileReport(void){ pspDiagFileWrite("PSP_TEXPERF hits=%lu misses=%lu binds=%lu evictions=%lu decodes=%lu decodeUs=%llu copyUs=%llu cacheBytes=%lu\\n",g_texHits,g_texMisses,g_texBinds,g_texEvictions,g_pageDecodes,g_pageDecodeUs,g_texCopyUs,(unsigned long)g_texCacheBytes); g_texHits=g_texMisses=g_texBinds=g_texEvictions=g_pageDecodes=0; g_pageDecodeUs=g_texCopyUs=0; }
 static int nextPow2(int v){int n=1;while(n<v&&n<PSP_TEX_MAX)n<<=1;return n;}
+
+/*
+ * The GE reads texture memory asynchronously. The old code used
+ * sceKernelDcacheWritebackInvalidateAll() for every newly-created cached
+ * texture. That invalidates the PSP's entire 32 KiB D-cache and is wildly
+ * expensive when a room introduces many small sprite/glyph textures.
+ *
+ * Only the texture buffer we just filled needs to be made visible to the GE.
+ * PSP cache lines are 64 bytes, so align the range before issuing the
+ * writeback. We deliberately do not invalidate the CPU cache here: the CPU
+ * does not need to reread this buffer immediately and the GE only needs the
+ * dirty data written to RAM.
+ */
+static void pspTextureWriteback(const void *ptr, size_t size){
+    if(!ptr||size==0)return;
+    uintptr_t start=(uintptr_t)ptr;
+    uintptr_t end=start+size;
+    start&=~(uintptr_t)63;
+    end=(end+63)&~(uintptr_t)63;
+    if(end>start){
+        sceKernelDcacheWritebackRange((const void*)start,(unsigned int)(end-start));
+    }
+}
+
 static void textureCacheDestroy(void){
     for(int i=0;i<PSP_TEX_CACHE_ENTRIES;i++){free(g_texCache[i].pixels);memset(&g_texCache[i],0,sizeof(g_texCache[i]));}
     g_texCacheBytes=0;
@@ -155,15 +180,17 @@ static bool uploadRect(DataWin *dw,int pageId,int sx,int sy,int sw,int sh,int *t
          memcpy(e->pixels+(size_t)y*tw*4,g_cachedPixels+((size_t)(sy+y)*g_cachedW+sx)*4,(size_t)sw*4);
      g_texCopyUs += sceKernelGetSystemTimeWide()-copyStart;
      e->initialized=1;
-     sceKernelDcacheWritebackInvalidateAll();
+     pspTextureWriteback(e->pixels,e->bytes);
  }
  if(g_boundTexture!=e || g_boundTw!=tw || g_boundTh!=th){
      g_texBinds++;
-     sceGuTexMode(GU_PSM_8888,0,0,GU_FALSE);
+     /*
+      * sceGuTexImage() already flushes the PSP texture page-cache. The
+      * explicit sceGuTexFlush() that used to follow it was redundant.
+      * Texture mode/function/filter are constant for this renderer and are
+      * configured once when the GU starts.
+      */
      sceGuTexImage(0,tw,th,tw,e->pixels);
-     sceGuTexFunc(GU_TFX_MODULATE,GU_TCC_RGBA);
-     sceGuTexFilter(GU_NEAREST,GU_NEAREST);
-     sceGuTexFlush();
      g_boundTexture=e; g_boundTw=tw; g_boundTh=th;
  }
  *twOut=tw;*thOut=th;*pixelsOut=e->pixels;return true;
@@ -207,6 +234,15 @@ static void pspInit(Renderer *renderer, DataWin *dataWin) {
     sceGuDisable(GU_CULL_FACE);
     sceGuDisable(GU_LIGHTING);
     sceGuEnable(GU_TEXTURE_2D);
+    /*
+     * All PSP texture uploads in this backend are RGBA8888, modulated by
+     * the vertex colour, and point-filtered. Keep these states outside the
+     * per-texture bind path; sceGuTexImage() is the only state that changes
+     * from one cached texture to another.
+     */
+    sceGuTexMode(GU_PSM_8888,0,0,GU_FALSE);
+    sceGuTexFunc(GU_TFX_MODULATE,GU_TCC_RGBA);
+    sceGuTexFilter(GU_NEAREST,GU_NEAREST);
     sceGuEnable(GU_BLEND);
     sceGuBlendFunc(GU_ADD, GU_SRC_ALPHA, GU_ONE_MINUS_SRC_ALPHA, 0, 0);
     sceGuFinish();
