@@ -22,13 +22,27 @@ list(FILTER CORE_SOURCES EXCLUDE REGEX ".*/cli/.*")
 set(PS1_SOURCES
     main.c
     platform.c
+    compat/stdio.c
+    compat/math.c
 )
 
 psn00bsdk_add_executable(butterscotch_ps1 GPREL ${CORE_SOURCES} ${PS1_SOURCES})
-target_include_directories(butterscotch_ps1 PRIVATE "${UPSTREAM}" "${UPSTREAM}/debug_font")
+target_include_directories(butterscotch_ps1 BEFORE PRIVATE "${CMAKE_CURRENT_LIST_DIR}/compat" "${UPSTREAM}" "${UPSTREAM}/debug_font")
 target_compile_definitions(butterscotch_ps1 PRIVATE
     ENABLE_NOOP_RENDERER
     USE_NOOP_FILE_SYSTEM
+    NO_FMIN
+    NO_FMAX
+    NO_ROUND
+    NO_LOG2
+    NO_LROUND
+    NO_SQRTF
+    NO_FABSF
+    NO_FMODF
+    NO_SINF
+    NO_COSF
+    NO_FLOORF
+    NO_ROUNDF
 )
 target_compile_options(butterscotch_ps1 PRIVATE -ffunction-sections -fdata-sections)
 target_link_options(butterscotch_ps1 PRIVATE -Wl,--gc-sections)
