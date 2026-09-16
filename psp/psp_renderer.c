@@ -155,6 +155,7 @@ static void pspInit(Renderer *renderer, DataWin *dataWin) {
     void *zb = guGetStaticVramBuffer(PSP_BUF_W, PSP_H, GU_PSM_4444);
 
     sceGuInit();
+    pspTextureCacheFrameStart();
     sceGuStart(GU_DIRECT, g_list);
     sceGuDrawBuffer(GU_PSM_8888, fb0, PSP_BUF_W);
     sceGuDispBuffer(PSP_W, PSP_H, fb1, PSP_BUF_W);
