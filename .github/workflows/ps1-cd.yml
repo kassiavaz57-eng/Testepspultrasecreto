@@ -17,6 +17,16 @@ jobs:
       - name: Fetch Butterscotch source
         run: git clone --depth 1 https://github.com/ButterscotchRunner/Butterscotch.git upstream
 
+      - name: Mark Butterscotch PS1 platform
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path("upstream/src/loop.c")
+          s=p.read_text()
+          s=s.replace("#ifndef __wasi__\n#include <signal.h>", "#if !defined(__wasi__) && !defined(PLATFORM_PS1)\n#include <signal.h>")
+          p.write_text(s)
+          PY
+
       - name: Build real Butterscotch core
         run: |
           export PSN00BSDK_LIBS=/opt/psn00bsdk/lib/libpsn00b
