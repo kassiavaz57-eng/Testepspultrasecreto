@@ -72,23 +72,34 @@ int main(void){
     uint64_t stepStartUs=sceKernelGetSystemTimeWide();
     Runner_step(runner);
     pspPerfStepUs += sceKernelGetSystemTimeWide()-stepStartUs;
+    if(bootlog){fprintf(bootlog,"FRAME: step\n");fflush(bootlog);}
     int32_t gameW=(int32_t)d->gen8.defaultWindowWidth, gameH=(int32_t)d->gen8.defaultWindowHeight;
     // The PSP renderer owns a live GU display list. Start the frame before any
     // draw call; unlike the PS2 queue renderer, drawPre cannot run before GU start.
     uint64_t drawStartUs=sceKernelGetSystemTimeWide();
     Runner_beginFrame(runner,gameW,gameH,480,272,480,272);
+    if(bootlog){fprintf(bootlog,"FRAME: beginFrame\n");fflush(bootlog);}
     Runner_drawPre(runner,480,272);
+    if(bootlog){fprintf(bootlog,"FRAME: drawPre\n");fflush(bootlog);}
     Runner_drawViews(runner,gameW,gameH,false);
+    if(bootlog){fprintf(bootlog,"FRAME: drawViews\n");fflush(bootlog);}
     runner->renderer->vtable->endFrameInit(runner->renderer);
     Runner_drawPost(runner,480,272);
+    if(bootlog){fprintf(bootlog,"FRAME: drawPost\n");fflush(bootlog);}
     runner->renderer->vtable->endFrameEnd(runner->renderer);
     Runner_drawGUI(runner,480,272,gameW,gameH);
+    if(bootlog){fprintf(bootlog,"FRAME: drawGUI\n");fflush(bootlog);}
     pspPerfDrawUs += sceKernelGetSystemTimeWide()-drawStartUs;
     uint64_t syncStartUs=sceKernelGetSystemTimeWide();
-    sceGuFinish(); sceGuSync(GU_SYNC_FINISH,GU_SYNC_WHAT_DONE);
+    sceGuFinish();
+    if(bootlog){fprintf(bootlog,"FRAME: guFinish\n");fflush(bootlog);}
+    sceGuSync(GU_SYNC_FINISH,GU_SYNC_WHAT_DONE);
+    if(bootlog){fprintf(bootlog,"FRAME: guSync\n");fflush(bootlog);}
     pspPerfSyncUs += sceKernelGetSystemTimeWide()-syncStartUs;
     sceDisplayWaitVblankStart();
+    if(bootlog){fprintf(bootlog,"FRAME: vblank\n");fflush(bootlog);}
     sceGuSwapBuffers();
+    if(bootlog){fprintf(bootlog,"FRAME: swap\n");fflush(bootlog);}
     // Target 30 Hz without the old double-vblank stall: a slow frame is not
     // forced to wait for a second vblank and fall straight to ~15 FPS.
     uint64_t paceNow = sceKernelGetSystemTimeWide();
@@ -96,6 +107,7 @@ int main(void){
     if (frameUs < 33333ULL) sceKernelDelayThread((SceUInt)(33333ULL - frameUs));
     pspPerfWaitUs += sceKernelGetSystemTimeWide()-paceNow;
     pspPerfFrames++;
+    if(bootlog){fprintf(bootlog,"FRAME: DONE %llu\n",(unsigned long long)pspPerfFrames);fflush(bootlog);}
     framePaceUs = sceKernelGetSystemTimeWide();
     // Match the shared runner loop: consume a queued room change after the frame.
     Runner_handlePendingRoomChange(runner);
