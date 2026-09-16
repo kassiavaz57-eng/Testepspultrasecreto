@@ -30,11 +30,14 @@ for x in ['Runner_create', 'Runner_reset']:
     if x not in h:
         raise SystemExit('ERROR: missing core API: ' + x)
 
-# PSP main only needs to drive the already-created Runner; construction lives
-# in the platform-neutral runner/loop layer.
-for x in ['Runner_step', 'Runner']:
-    if x not in m:
-        raise SystemExit('ERROR: missing PSP main integration: ' + x)
+# PSP main is intentionally thin. The platform-neutral Butterscotch loop owns
+# Runner creation, stepping, room transitions, and rendering.
+if 'loop(args' not in m:
+    raise SystemExit('ERROR: PSP main is not entering the real Butterscotch loop')
+
+for x in ['Runner_step', 'Runner_create']:
+    if x not in loop:
+        raise SystemExit('ERROR: real Runner integration is missing from loop.c: ' + x)
 
 for x in ['FileSystemVtable', 'listdir']:
     if x not in f:
