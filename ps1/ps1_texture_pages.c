@@ -12,487 +12,267 @@
 #define CLUT4_BYTES 64
 #define CLUT8_BYTES 1024
 
-static uint16_t readU16(FILE* f) {
-    uint8_t b[2] = {0, 0};
+static uint16_t rd16(FILE* f) {
+    uint8_t b[2];
     if (fread(b, 1, 2, f) != 2) return 0;
     return (uint16_t)(b[0] | ((uint16_t)b[1] << 8));
 }
-
-static uint32_t readU32(FILE* f) {
-    uint8_t b[4] = {0, 0, 0, 0};
+static uint32_t rd32(FILE* f) {
+    uint8_t b[4];
     if (fread(b, 1, 4, f) != 4) return 0;
-    return (uint32_t)b[0] |
-           ((uint32_t)b[1] << 8) |
-           ((uint32_t)b[2] << 16) |
-           ((uint32_t)b[3] << 24);
+    return (uint32_t)b[0] | ((uint32_t)b[1] << 8) |
+           ((uint32_t)b[2] << 16) | ((uint32_t)b[3] << 24);
 }
 
-static bool parseAtlas(Ps1TexturePages* cache, FILE* f) {
+static bool parseAtlas(Ps1TexturePages* c, FILE* f) {
     uint8_t version;
     uint16_t tileCount;
-
     if (fread(&version, 1, 1, f) != 1 || version != 0) return false;
+    c->tpagCount = rd16(f);
+    tileCount = rd16(f);
+    c->atlasCount = rd16(f);
+    if (!c->tpagCount || !c->atlasCount) return false;
 
-    cache->tpagCount = readU16(f);
-    tileCount = readU16(f);
-    cache->atlasCount = readU16(f);
+    c->tpag = (Ps1PageTPAG*)safeMalloc((size_t)c->tpagCount * sizeof(*c->tpag));
+    c->atlases = (Ps1PageAtlas*)safeMalloc((size_t)c->atlasCount * sizeof(*c->atlases));
+    if (!c->tpag || !c->atlases) return false;
 
-    cache->tpag = (Ps1PageTPAG*)safeMalloc(
-        (size_t)cache->tpagCount * sizeof(Ps1PageTPAG));
-    cache->atlases = (Ps1PageAtlas*)safeMalloc(
-        (size_t)cache->atlasCount * sizeof(Ps1PageAtlas));
-
-    for (uint16_t i = 0; i < cache->atlasCount; ++i) {
-        Ps1PageAtlas* a = &cache->atlases[i];
-        a->dataOffset = readU32(f);
-        a->width = readU16(f);
-        a->height = readU16(f);
+    for (uint16_t i = 0; i < c->atlasCount; ++i) {
+        Ps1PageAtlas* a = &c->atlases[i];
+        a->dataOffset = rd32(f);
+        a->width = rd16(f);
+        a->height = rd16(f);
         if (fread(&a->bpp, 1, 1, f) != 1) return false;
-        a->dataSize = readU32(f);
+        a->dataSize = rd32(f);
         if (fread(&a->compression, 1, 1, f) != 1) return false;
-
-        if ((a->bpp != 4 && a->bpp != 8) ||
-            a->width == 0 || a->height == 0 ||
-            a->width > 1024 || a->height > 1024) {
-            return false;
-        }
+        if ((a->bpp != 4 && a->bpp != 8) || !a->width || !a->height ||
+            a->width > 1024 || a->height > 1024) return false;
     }
-
-    for (uint16_t i = 0; i < cache->tpagCount; ++i) {
-        Ps1PageTPAG* e = &cache->tpag[i];
-        e->atlasId = readU16(f);
-        e->atlasX = readU16(f);
-        e->atlasY = readU16(f);
-        e->width = readU16(f);
-        e->height = readU16(f);
-        e->cropX = readU16(f);
-        e->cropY = readU16(f);
-        e->cropW = readU16(f);
-        e->cropH = readU16(f);
-        e->clutIndex = readU16(f);
+    for (uint16_t i = 0; i < c->tpagCount; ++i) {
+        Ps1PageTPAG* e = &c->tpag[i];
+        e->atlasId = rd16(f); e->atlasX = rd16(f); e->atlasY = rd16(f);
+        e->width = rd16(f); e->height = rd16(f);
+        e->cropX = rd16(f); e->cropY = rd16(f);
+        e->cropW = rd16(f); e->cropH = rd16(f);
+        e->clutIndex = rd16(f);
+        if (e->atlasId >= c->atlasCount) return false;
     }
-
-    /* AtlasTileEntry is 15 uint16 fields in the official format. We do not
-     * need the records to resolve sprite TPAGs yet, but must advance exactly
-     * over them so the parser remains synchronized. */
-    if (tileCount != 0 && fseek(f, (long)tileCount * 30L, SEEK_CUR) != 0)
-        return false;
-
+    if (tileCount && fseek(f, (long)tileCount * 30L, SEEK_CUR) != 0) return false;
     return true;
 }
 
 static uint16_t rgbaToPs1(uint8_t r, uint8_t g, uint8_t b, uint8_t a) {
-    uint16_t pr, pg, pb, stp;
-
-    if (a == 0 && r == 0 && g == 0 && b == 0)
-        return 0;
-
-    pr = (uint16_t)(r >> 3);
-    pg = (uint16_t)(g >> 3);
-    pb = (uint16_t)(b >> 3);
-    stp = (a < 255) ? 0x8000u : 0;
-
-    /* Keep opaque black distinguishable from the transparent zero entry. */
-    if (pr == 0 && pg == 0 && pb == 0 && stp == 0)
-        pr = 1;
-
-    return (uint16_t)(pr | (pg << 5) | (pb << 10) | stp);
+    uint16_t v = (uint16_t)((r >> 3) | ((g >> 3) << 5) | ((b >> 3) << 10));
+    if (a != 0) v |= 0x8000u;
+    return v;
 }
 
-static bool loadClutFile(Ps1TexturePages* cache, const char* path, uint8_t bpp) {
-    char* devicePath = PS1Utils_createDevicePath(path);
-    FILE* f = fopen(devicePath, "rb");
-    uint32_t entryBytes = (bpp == 4) ? CLUT4_BYTES : CLUT8_BYTES;
-    uint32_t capacity = (bpp == 4) ? PS1_CLUT4_SLOTS : PS1_CLUT8_SLOTS;
-    Ps1PageClut* slots = (bpp == 4) ? cache->clut4 : cache->clut8;
-    long fileSize;
-
-    free(devicePath);
+static bool loadCluts(Ps1TexturePages* c, const char* name, uint8_t bpp) {
+    char* path = PS1Utils_createDevicePath(name);
+    FILE* f = fopen(path, "rb");
+    free(path);
     if (!f) return false;
-
-    if (fseek(f, 0, SEEK_END) != 0) {
-        fclose(f);
-        return false;
+    const uint32_t bytes = (bpp == 4) ? CLUT4_BYTES : CLUT8_BYTES;
+    const uint32_t count = (bpp == 4) ? PS1_CLUT4_SLOTS : PS1_CLUT8_SLOTS;
+    Ps1PageClut* slots = (bpp == 4) ? c->clut4 : c->clut8;
+    fseek(f, 0, SEEK_END);
+    long size = ftell(f);
+    fseek(f, 0, SEEK_SET);
+    if (size < 0 || ((uint32_t)size % bytes) != 0 || (uint32_t)size / bytes > count) {
+        fclose(f); return false;
     }
-    fileSize = ftell(f);
-    if (fileSize < 0 || fseek(f, 0, SEEK_SET) != 0) {
-        fclose(f);
-        return false;
-    }
-
-    uint32_t count = (uint32_t)fileSize / entryBytes;
-    if (count > capacity) {
-        /* A CLUT that cannot remain resident for a complete frame is not safe
-         * to silently truncate: later TPAG indices would select wrong colors. */
-        fclose(f);
-        return false;
-    }
-
-    for (uint32_t i = 0; i < count; ++i) {
+    for (uint32_t i = 0, n = (uint32_t)size / bytes; i < n; ++i) {
         uint8_t raw[CLUT8_BYTES];
         uint16_t colors[256];
-        uint32_t colorCount = (bpp == 4) ? 16u : 256u;
-
-        if (fread(raw, 1, entryBytes, f) != entryBytes) {
-            fclose(f);
-            return false;
+        const uint32_t colorsN = (bpp == 4) ? 16u : 256u;
+        if (fread(raw, 1, bytes, f) != bytes) { fclose(f); return false; }
+        for (uint32_t j = 0; j < colorsN; ++j) {
+            uint32_t o = j * 4u;
+            colors[j] = rgbaToPs1(raw[o], raw[o + 1], raw[o + 2], raw[o + 3]);
         }
-
-        for (uint32_t c = 0; c < colorCount; ++c) {
-            uint32_t o = c * 4u;
-            colors[c] = rgbaToPs1(raw[o], raw[o + 1], raw[o + 2], raw[o + 3]);
+        RECT r;
+        if (bpp == 4) {
+            r.x = (int16_t)((i & 63u) * 16u); r.y = PS1_CLUT_Y4;
+            r.w = 16; r.h = 1;
+        } else {
+            r.x = (int16_t)((i & 3u) * 256u); r.y = (int16_t)(PS1_CLUT_Y8 + (i >> 2));
+            r.w = 256; r.h = 1;
         }
-
-        RECT rect;
-        rect.x = (bpp == 4) ? (int16_t)((i % 64u) * 16u)
-                            : (int16_t)((i % 4u) * 256u);
-        rect.y = (bpp == 4) ? PS1_CLUT_Y4 + (int16_t)(i / 64u)
-                            : PS1_CLUT_Y8 + (int16_t)(i / 4u);
-        rect.w = (bpp == 4) ? 16 : 256;
-        rect.h = 1;
-
-        LoadImage(&rect, (uint32_t*)colors);
+        LoadImage(&r, (uint32_t*)colors);
         DrawSync(0);
-
-        slots[i].valid = true;
-        slots[i].index = (uint16_t)i;
-        slots[i].x = (uint16_t)rect.x;
-        slots[i].y = (uint16_t)rect.y;
-        slots[i].lastUsed = cache->frameCounter;
+        slots[i].valid = true; slots[i].index = (uint16_t)i;
+        slots[i].x = (uint16_t)r.x; slots[i].y = (uint16_t)r.y;
+        slots[i].lastUsed = c->frameCounter;
     }
-
     fclose(f);
     return true;
 }
 
-static int findPage(Ps1TexturePages* cache, uint16_t atlasId,
-                    uint16_t pageX, uint16_t pageY, uint8_t bpp) {
+static uint32_t rowBytes(const Ps1PageAtlas* a) {
+    return a->bpp == 4 ? ((uint32_t)a->width + 1u) / 2u : (uint32_t)a->width;
+}
+static uint32_t pagePixelWidth(const Ps1PageAtlas* a) { return a->bpp == 4 ? 256u : 128u; }
+static uint32_t pageByteWidth(void) { return 128u; }
+
+static bool decodeRaw(FILE* f, const Ps1PageAtlas* a, uint16_t px, uint16_t py, uint8_t* out) {
+    const uint32_t rb = rowBytes(a), bw = pageByteWidth();
+    const uint32_t sx = (uint32_t)px * 128u, sy = (uint32_t)py * 256u;
+    memset(out, 0, PS1_TEX_PAGE_BYTES);
+    for (uint32_t y = 0; y < 256u; ++y) {
+        uint32_t srcY = sy + y;
+        if (srcY >= a->height || sx >= rb) continue;
+        uint32_t n = rb - sx; if (n > bw) n = bw;
+        if (fseek(f, (long)(a->dataOffset + srcY * rb + sx), SEEK_SET) != 0) return false;
+        if (fread(out + y * bw, 1, n, f) != n) return false;
+    }
+    return true;
+}
+
+/* Official type-1 compression is byte RLE: (runLength,value). The atlas
+ * payload is indexed/packed already, so the PS1 page is filled byte-for-byte. */
+static bool decodeRle(FILE* f, const Ps1PageAtlas* a, uint16_t px, uint16_t py, uint8_t* out) {
+    const uint32_t rb = rowBytes(a), bw = pageByteWidth();
+    const uint32_t pageW = pagePixelWidth(a);
+    const uint32_t sx = (uint32_t)px * pageW, sy = (uint32_t)py * 256u;
+    const uint32_t sxByte = sx / (a->bpp == 4 ? 2u : 1u);
+    const uint32_t total = rb * (uint32_t)a->height;
+    uint32_t src = 0;
+    uint32_t dst = 0;
+    memset(out, 0, PS1_TEX_PAGE_BYTES);
+    while (src + 2u <= a->dataSize && dst < total) {
+        uint8_t run, value;
+        if (fread(&run, 1, 1, f) != 1 || fread(&value, 1, 1, f) != 1) return false;
+        src += 2u;
+        if (!run) continue;
+        uint32_t end = dst + (uint32_t)run;
+        if (end > total) end = total;
+        uint32_t p = dst;
+        while (p < end) {
+            uint32_t row = p / rb;
+            uint32_t rowEnd = (row + 1u) * rb;
+            uint32_t target0 = row * rb + sxByte;
+            uint32_t target1 = target0 + bw;
+            if (target1 > rowEnd) target1 = rowEnd;
+            uint32_t q = p < target0 ? target0 : p;
+            if (q < end && q < target1 && row >= sy && row < sy + 256u) {
+                uint32_t copyEnd = end < target1 ? end : target1;
+                uint32_t drow = row - sy;
+                uint32_t dcol = q - target0;
+                for (uint32_t i = q; i < copyEnd; ++i) out[drow * bw + dcol++] = value;
+            }
+            if (p < rowEnd) p = rowEnd; else p = end;
+        }
+        dst += run;
+        if (dst > total) dst = total;
+    }
+    return dst == total;
+}
+
+static int findPage(Ps1TexturePages* c, uint16_t atlas, uint16_t px, uint16_t py, uint8_t bpp) {
     for (int i = 0; i < PS1_TEX_PAGE_SLOTS; ++i) {
-        Ps1PageSlot* s = &cache->pages[i];
-        if (s->valid && s->atlasId == atlasId &&
-            s->pageX == pageX && s->pageY == pageY && s->bpp == bpp)
-            return i;
+        Ps1PageSlot* s = &c->pages[i];
+        if (s->valid && s->atlasId == atlas && s->pageX == px && s->pageY == py && s->bpp == bpp) return i;
     }
     return -1;
 }
-
-static int choosePageSlot(Ps1TexturePages* cache) {
-    int victim = -1;
-    uint32_t oldest = 0xffffffffu;
-
+static int allocPage(Ps1TexturePages* c) {
+    int victim = -1; uint32_t oldest = 0xffffffffu;
     for (int i = 0; i < PS1_TEX_PAGE_SLOTS; ++i) {
-        Ps1PageSlot* s = &cache->pages[i];
+        Ps1PageSlot* s = &c->pages[i];
         if (!s->valid) return i;
-        /* Pages touched during this frame are pinned. The renderer must batch
-         * or submit work before requesting more than the available slots. */
-        if (s->lastUsed == cache->frameCounter) continue;
-        if (s->lastUsed < oldest) {
-            oldest = s->lastUsed;
-            victim = i;
-        }
+        if (s->lastUsed == c->frameCounter) continue;
+        if (s->lastUsed < oldest) { oldest = s->lastUsed; victim = i; }
     }
     return victim;
 }
+static uint16_t makeClut(uint16_t x, uint16_t y) { return getClut(x, y); }
+static uint16_t makeTPage(uint8_t bpp, uint16_t x, uint16_t y) { return getTPage(bpp == 4 ? 0 : 1, 0, x, y); }
 
-static uint32_t atlasRowBytes(const Ps1PageAtlas* a) {
-    if (a->bpp == 4)
-        return ((uint32_t)a->width + 1u) / 2u;
-    return (uint32_t)a->width;
-}
-
-static uint32_t pageByteWidth(const Ps1PageAtlas* a) {
-    /* Both PS1 indexed modes occupy exactly 64 VRAM words per page row. */
-    (void)a;
-    return 128u;
-}
-
-static uint32_t atlasUncompressedSize(const Ps1PageAtlas* a) {
-    return atlasRowBytes(a) * (uint32_t)a->height;
-}
-
-static bool decodePageRle(FILE* f, const Ps1PageAtlas* a,
-                          uint16_t pageX, uint16_t pageY,
-                          uint8_t* out) {
-    uint32_t rowBytes = atlasRowBytes(a);
-    uint32_t totalBytes = atlasUncompressedSize(a);
-    uint32_t targetByteWidth = pageByteWidth(a);
-    uint32_t pagePixelWidth = (a->bpp == 4) ? 256u : 128u;
-    uint32_t pageStartRow = (uint32_t)pageY * 256u;
-    uint32_t pageStartX = (uint32_t)pageX * pagePixelWidth;
-    uint32_t consumed = 0;
-    uint32_t produced = 0;
-
-    (void)memset(out, 0, PS1_TEX_PAGE_BYTES);
-
-    while (consumed + 1u < a->dataSize && produced < totalBytes) {
-        uint8_t runLength;
-        uint8_t value;
-        uint32_t runStart;
-        uint32_t runEnd;
-
-        if (fread(&runLength, 1, 1, f) != 1 ||
-            fread(&value, 1, 1, f) != 1)
-            return false;
-        consumed += 2u;
-
-        if (runLength == 0) continue;
-
-        runStart = produced;
-        runEnd = produced + (uint32_t)runLength;
-        if (runEnd > totalBytes) runEnd = totalBytes;
-
-        while (runStart < runEnd) {
-            uint32_t row = runStart / rowBytes;
-            uint32_t rowEnd = (row + 1u) * rowBytes;
-            uint32_t targetStart;
-            uint32_t targetEnd;
-            uint32_t copyStart;
-            uint32_t copyEnd;
-
-            if (row >= (uint32_t)a->height) break;
-            if (rowEnd > totalBytes) rowEnd = totalBytes;
-
-            targetStart = row * rowBytes + pageStartX / ((a->bpp == 4) ? 2u : 1u);
-            targetEnd = targetStart + targetByteWidth;
-            if (targetEnd > rowEnd) targetEnd = rowEnd;
-
-            if (runStart < targetStart) {
-                runStart = (runEnd < targetStart) ? runEnd : targetStart;
-                continue;
-            }
-            if (runStart >= targetEnd) {
-                runStart = rowEnd;
-                continue;
-            }
-
-            copyStart = runStart;
-            copyEnd = runEnd < targetEnd ? runEnd : targetEnd;
-
-            if (row >= pageStartRow && row < pageStartRow + 256u) {
-                uint32_t dstRow = row - pageStartRow;
-                uint32_t dstCol = copyStart - targetStart;
-                uint32_t count = copyEnd - copyStart;
-                uint8_t* dst = out + dstRow * targetByteWidth + dstCol;
-                for (uint32_t n = 0; n < count; ++n)
-                    dst[n] = value;
-            }
-            runStart = copyEnd;
-        }
-
-        produced += (uint32_t)runLength;
-        if (produced > totalBytes) produced = totalBytes;
+static bool uploadPage(Ps1TexturePages* c, uint16_t atlas, uint16_t px, uint16_t py) {
+    if (atlas >= c->atlasCount) return false;
+    const Ps1PageAtlas* a = &c->atlases[atlas];
+    int slot = allocPage(c); if (slot < 0) return false;
+    if (!c->texturesFile) {
+        char* path = PS1Utils_createDevicePath("TEXTURES.BIN");
+        c->texturesFile = fopen(path, "rb"); free(path);
     }
-
-    return produced == totalBytes;
-}
-
-static bool decodePageRaw(FILE* f, const Ps1PageAtlas* a,
-                          uint16_t pageX, uint16_t pageY,
-                          uint8_t* out) {
-    uint32_t rowBytes = atlasRowBytes(a);
-    uint32_t pageWidth = pageByteWidth(a);
-    uint32_t sourceXBytes = (a->bpp == 4) ? (uint32_t)pageX * 128u
-                                          : (uint32_t)pageX * 128u;
-    uint32_t firstRow = (uint32_t)pageY * 256u;
-
-    (void)memset(out, 0, PS1_TEX_PAGE_BYTES);
-
-    for (uint32_t y = 0; y < 256u; ++y) {
-        uint32_t srcRow = firstRow + y;
-        uint8_t* dst = out + y * pageWidth;
-        uint32_t copyBytes;
-
-        if (srcRow >= a->height || sourceXBytes >= rowBytes)
-            continue;
-
-        copyBytes = rowBytes - sourceXBytes;
-        if (copyBytes > pageWidth) copyBytes = pageWidth;
-
-        if (fseek(f, (long)(a->dataOffset + srcRow * rowBytes + sourceXBytes), SEEK_SET) != 0)
-            return false;
-        if (fread(dst, 1, copyBytes, f) != copyBytes)
-            return false;
-    }
-
+    if (!c->texturesFile) return false;
+    uint8_t data[PS1_TEX_PAGE_BYTES];
+    if (fseek(c->texturesFile, (long)a->dataOffset, SEEK_SET) != 0) return false;
+    bool ok = a->compression == 1 ? decodeRle(c->texturesFile, a, px, py, data)
+                                  : decodeRaw(c->texturesFile, a, px, py, data);
+    if (!ok) return false;
+    RECT r;
+    r.x = (int16_t)(PS1_TEX_PAGE_VRAM_X + slot * PS1_TEX_PAGE_WORDS);
+    r.y = PS1_TEX_PAGE_VRAM_Y; r.w = PS1_TEX_PAGE_WORDS; r.h = PS1_TEX_PAGE_HEIGHT;
+    LoadImage(&r, (uint32_t*)data); DrawSync(0);
+    c->pages[slot].valid = true; c->pages[slot].atlasId = atlas;
+    c->pages[slot].pageX = px; c->pages[slot].pageY = py; c->pages[slot].bpp = a->bpp;
+    c->pages[slot].vramX = (uint16_t)r.x; c->pages[slot].vramY = (uint16_t)r.y;
+    c->pages[slot].lastUsed = c->frameCounter;
     return true;
 }
-
-static bool uploadPage(Ps1TexturePages* cache, uint16_t atlasId,
-                       uint16_t pageX, uint16_t pageY) {
-    const Ps1PageAtlas* a;
-    int slot;
-    uint8_t pageData[PS1_TEX_PAGE_BYTES];
-    uint16_t vramX;
-    char* devicePath;
-
-    if (atlasId >= cache->atlasCount) return false;
-    a = &cache->atlases[atlasId];
-    slot = choosePageSlot(cache);
-    if (slot < 0) return false;
-
-    devicePath = PS1Utils_createDevicePath("TEXTURES.BIN");
-    if (cache->texturesFile == NULL)
-        cache->texturesFile = fopen(devicePath, "rb");
-    free(devicePath);
-    if (cache->texturesFile == NULL) return false;
-
-    if (a->compression == 1) {
-        if (fseek(cache->texturesFile, (long)a->dataOffset, SEEK_SET) != 0)
-            return false;
-        if (!decodePageRle(cache->texturesFile, a, pageX, pageY, pageData))
-            return false;
-    } else {
-        if (!decodePageRaw(cache->texturesFile, a, pageX, pageY, pageData))
-            return false;
-    }
-
-    vramX = (uint16_t)(PS1_TEX_PAGE_VRAM_X + slot * PS1_TEX_PAGE_WORDS);
-    RECT rect;
-    rect.x = (int16_t)vramX;
-    rect.y = PS1_TEX_PAGE_VRAM_Y;
-    rect.w = PS1_TEX_PAGE_WORDS;
-    rect.h = PS1_TEX_PAGE_HEIGHT;
-
-    LoadImage(&rect, (uint32_t*)pageData);
-    DrawSync(0);
-
-    cache->pages[slot].valid = true;
-    cache->pages[slot].atlasId = atlasId;
-    cache->pages[slot].pageX = pageX;
-    cache->pages[slot].pageY = pageY;
-    cache->pages[slot].bpp = a->bpp;
-    cache->pages[slot].vramX = vramX;
-    cache->pages[slot].vramY = PS1_TEX_PAGE_VRAM_Y;
-    cache->pages[slot].lastUsed = cache->frameCounter;
-    return true;
+static int ensurePage(Ps1TexturePages* c, uint16_t atlas, uint16_t px, uint16_t py) {
+    if (atlas >= c->atlasCount) return -1;
+    uint8_t bpp = c->atlases[atlas].bpp;
+    int i = findPage(c, atlas, px, py, bpp);
+    if (i >= 0) { c->pages[i].lastUsed = c->frameCounter; return i; }
+    if (!uploadPage(c, atlas, px, py)) return -1;
+    return findPage(c, atlas, px, py, bpp);
+}
+static uint16_t resolveClut(Ps1TexturePages* c, uint8_t bpp, uint16_t index) {
+    Ps1PageClut* s = bpp == 4 ? c->clut4 : c->clut8;
+    if (index >= 64u || !s[index].valid) return 0;
+    s[index].lastUsed = c->frameCounter;
+    return makeClut(s[index].x, s[index].y);
 }
 
-static int ensurePage(Ps1TexturePages* cache, uint16_t atlasId,
-                      uint16_t pageX, uint16_t pageY) {
-    int found = findPage(cache, atlasId, pageX, pageY, cache->atlases[atlasId].bpp);
-    if (found >= 0) {
-        cache->pages[found].lastUsed = cache->frameCounter;
-        return found;
-    }
-    if (!uploadPage(cache, atlasId, pageX, pageY)) return -1;
-    return findPage(cache, atlasId, pageX, pageY, cache->atlases[atlasId].bpp);
-}
-
-static uint16_t getClut(Ps1TexturePages* cache, uint8_t bpp, uint16_t index) {
-    Ps1PageClut* slots = (bpp == 4) ? cache->clut4 : cache->clut8;
-    uint32_t count = (bpp == 4) ? PS1_CLUT4_SLOTS : PS1_CLUT8_SLOTS;
-    for (uint32_t i = 0; i < count; ++i) {
-        if (slots[i].valid && slots[i].index == index) {
-            slots[i].lastUsed = cache->frameCounter;
-            return getClut(slots[i].x, slots[i].y);
-        }
-    }
-    return 0;
-}
-
-bool Ps1TexturePages_init(Ps1TexturePages* cache) {
-    char* path;
-    FILE* f;
-
-    if (!cache) return false;
-    (void)memset(cache, 0, sizeof(*cache));
-    cache->frameCounter = 1;
-
-    path = PS1Utils_createDevicePath("ATLAS.BIN");
-    f = fopen(path, "rb");
-    free(path);
+bool Ps1TexturePages_init(Ps1TexturePages* c) {
+    if (!c) return false;
+    memset(c, 0, sizeof(*c)); c->frameCounter = 1;
+    char* path = PS1Utils_createDevicePath("ATLAS.BIN");
+    FILE* f = fopen(path, "rb"); free(path);
     if (!f) return false;
-
-    if (!parseAtlas(cache, f)) {
-        fclose(f);
-        Ps1TexturePages_shutdown(cache);
-        return false;
+    bool ok = parseAtlas(c, f); fclose(f);
+    if (!ok || !loadCluts(c, "CLUT4.BIN", 4) || !loadCluts(c, "CLUT8.BIN", 8)) {
+        Ps1TexturePages_shutdown(c); return false;
     }
-    fclose(f);
-
-    if (!loadClutFile(cache, "CLUT4.BIN", 4) ||
-        !loadClutFile(cache, "CLUT8.BIN", 8)) {
-        Ps1TexturePages_shutdown(cache);
-        return false;
-    }
-
     return true;
 }
-
-void Ps1TexturePages_shutdown(Ps1TexturePages* cache) {
-    if (!cache) return;
-    if (cache->texturesFile) fclose(cache->texturesFile);
-    free(cache->tpag);
-    free(cache->atlases);
-    (void)memset(cache, 0, sizeof(*cache));
+void Ps1TexturePages_shutdown(Ps1TexturePages* c) {
+    if (!c) return;
+    if (c->texturesFile) fclose(c->texturesFile);
+    c->texturesFile = NULL;
+    free(c->tpag); free(c->atlases); c->tpag = NULL; c->atlases = NULL;
+    c->tpagCount = c->atlasCount = 0;
 }
+void Ps1TexturePages_beginFrame(Ps1TexturePages* c) { if (c) ++c->frameCounter; }
 
-void Ps1TexturePages_beginFrame(Ps1TexturePages* cache) {
-    if (!cache) return;
-    ++cache->frameCounter;
-    if (cache->frameCounter == 0) cache->frameCounter = 1;
-}
-
-uint16_t Ps1TexturePages_resolveTPAG(
-    Ps1TexturePages* cache,
-    int32_t tpagIndex,
-    Ps1TexturePagePiece outPieces[PS1_TEX_MAX_TPAG_PIECES]) {
-    const Ps1PageTPAG* e;
-    const Ps1PageAtlas* a;
-    uint32_t pagePixelWidth;
-    uint32_t startX, startY, endX, endY;
-    uint16_t pieceCount = 0;
-
-    if (!cache || !outPieces || tpagIndex < 0 ||
-        (uint32_t)tpagIndex >= cache->tpagCount)
-        return 0;
-
-    e = &cache->tpag[tpagIndex];
-    if (e->atlasId == 0xffffu || e->atlasId >= cache->atlasCount)
-        return 0;
-
-    a = &cache->atlases[e->atlasId];
-    pagePixelWidth = (a->bpp == 4) ? 256u : 128u;
-
-    startX = e->atlasX;
-    startY = e->atlasY;
-    endX = startX + e->width;
-    endY = startY + e->height;
-
-    for (uint32_t py = startY / 256u; py <= (endY - 1u) / 256u; ++py) {
-        for (uint32_t px = startX / pagePixelWidth;
-             px <= (endX - 1u) / pagePixelWidth; ++px) {
-            uint32_t pageLeft = px * pagePixelWidth;
-            uint32_t pageTop = py * 256u;
-            uint32_t left = startX > pageLeft ? startX : pageLeft;
-            uint32_t top = startY > pageTop ? startY : pageTop;
-            uint32_t right = endX < pageLeft + pagePixelWidth ? endX : pageLeft + pagePixelWidth;
-            uint32_t bottom = endY < pageTop + 256u ? endY : pageTop + 256u;
-            int slot;
-
-            if (right <= left || bottom <= top) continue;
-            if (pieceCount >= PS1_TEX_MAX_TPAG_PIECES) return 0;
-
-            slot = ensurePage(cache, e->atlasId, (uint16_t)px, (uint16_t)py);
+uint16_t Ps1TexturePages_resolveTPAG(Ps1TexturePages* c, int32_t index, Ps1TexturePagePiece out[PS1_TEX_MAX_TPAG_PIECES]) {
+    if (!c || !out || index < 0 || (uint32_t)index >= c->tpagCount) return 0;
+    const Ps1PageTPAG* e = &c->tpag[index];
+    const Ps1PageAtlas* a = &c->atlases[e->atlasId];
+    const uint32_t pw = pagePixelWidth(a), ph = 256u;
+    uint16_t count = 0;
+    uint32_t endX = (uint32_t)e->atlasX + e->width;
+    uint32_t endY = (uint32_t)e->atlasY + e->height;
+    for (uint32_t py = e->atlasY / ph; py * ph < endY; ++py) {
+        for (uint32_t px = e->atlasX / pw; px * pw < endX; ++px) {
+            if (count >= PS1_TEX_MAX_TPAG_PIECES) return 0;
+            int slot = ensurePage(c, e->atlasId, (uint16_t)px, (uint16_t)py);
             if (slot < 0) return 0;
-
-            outPieces[pieceCount].x = (int16_t)(left - startX);
-            outPieces[pieceCount].y = (int16_t)(top - startY);
-            outPieces[pieceCount].width = (uint16_t)(right - left);
-            outPieces[pieceCount].height = (uint16_t)(bottom - top);
-            outPieces[pieceCount].u = (uint16_t)(left - pageLeft);
-            outPieces[pieceCount].v = (uint16_t)(top - pageTop);
-            outPieces[pieceCount].tpage = getTPage(
-                a->bpp == 4 ? 0 : 1, 0,
-                cache->pages[slot].vramX,
-                cache->pages[slot].vramY);
-            outPieces[pieceCount].clut = getClut(cache, a->bpp, e->clutIndex);
-            if (outPieces[pieceCount].clut == 0 && e->clutIndex != 0)
-                return 0;
-
-            ++pieceCount;
+            uint32_t ix0 = e->atlasX > px * pw ? e->atlasX : px * pw;
+            uint32_t iy0 = e->atlasY > py * ph ? e->atlasY : py * ph;
+            uint32_t ix1 = endX < (px + 1u) * pw ? endX : (px + 1u) * pw;
+            uint32_t iy1 = endY < (py + 1u) * ph ? endY : (py + 1u) * ph;
+            Ps1TexturePagePiece* q = &out[count++];
+            q->x = (int16_t)(ix0 - e->atlasX); q->y = (int16_t)(iy0 - e->atlasY);
+            q->width = (uint16_t)(ix1 - ix0); q->height = (uint16_t)(iy1 - iy0);
+            q->u = (uint16_t)(ix0 - px * pw); q->v = (uint16_t)(iy0 - py * ph);
+            q->tpage = makeTPage(a->bpp, c->pages[slot].vramX, c->pages[slot].vramY);
+            q->clut = resolveClut(c, a->bpp, e->clutIndex);
+            if (!q->clut) return 0;
         }
     }
-
-    return pieceCount;
+    return count;
 }
