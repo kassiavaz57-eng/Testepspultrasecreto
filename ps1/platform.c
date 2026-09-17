@@ -3,8 +3,9 @@
 #include <stddef.h>
 #include <psxetc.h>
 #include "platformdefs.h"
+#include "log.h"
+#include <stdarg.h>
 
-enum GraphicsAPI gfx = NOOP;
 
 bool platformInit(int32_t reqW, int32_t reqH, const char *title, bool headless) {
     (void)reqW; (void)reqH; (void)title; (void)headless;
@@ -27,3 +28,8 @@ bool platformGetScaledWindowSize(int32_t *outW, int32_t *outH) {
 void platformSetWindowSize(int32_t width, int32_t height) { (void)width; (void)height; }
 void platformSetWindowTitle(const char *title) { (void)title; }
 void platformSleepUntil(uint64_t time) { (void)time; VSync(0); }
+
+void platformLog(const logType type, const char *format, va_list va) {
+    (void)type;
+    vfprintf(stderr, format, va);
+}
