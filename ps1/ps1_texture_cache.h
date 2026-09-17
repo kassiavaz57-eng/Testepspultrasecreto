@@ -2,6 +2,7 @@
 #define _BS_PS1_TEXTURE_CACHE_H_
 
 #include "common.h"
+#include "stdio_compat.h"
 #include <stdint.h>
 #include <stdbool.h>
 #include <psxgpu.h>
@@ -63,14 +64,8 @@ typedef struct {
 
 bool Ps1TextureCache_init(Ps1TextureCache* cache);
 void Ps1TextureCache_shutdown(Ps1TextureCache* cache);
-
-/* Ensures an atlas is resident and returns its PS1 texture page. */
 uint16_t Ps1TextureCache_getTPage(Ps1TextureCache* cache, uint16_t atlasId);
-
-/* Returns the CLUT location encoded for getClut(), or 0 on failure. */
 uint16_t Ps1TextureCache_getClut(Ps1TextureCache* cache, uint8_t bpp, uint16_t clutIndex);
-
-/* Resolves a TPAG entry into the atlas page + UV origin used by POLY_FT4/SPRT. */
 bool Ps1TextureCache_resolveTPAG(Ps1TextureCache* cache, int32_t tpagIndex, uint16_t* outTPage, uint16_t* outClut, int16_t* outU, int16_t* outV, uint16_t* outW, uint16_t* outH);
 
 #endif /* _BS_PS1_TEXTURE_CACHE_H_ */
