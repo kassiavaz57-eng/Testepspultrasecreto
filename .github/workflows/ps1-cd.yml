@@ -32,6 +32,59 @@ jobs:
           s=s.replace('#include "debug_font/debug_font.h"\n', '#include "debug_font/debug_font.h"\n#include "noop_file_system.h"\n')
           p.write_text(s)
 
+          p=Path("upstream/src/overlay_file_system.c")
+          s=p.read_text()
+          s=s.replace('#include "stb_ds.h"\n', '#include "stb_ds.h"\n')
+          s=s.replace('#include <sys/stat.h>\n#include <errno.h>\n', '#ifndef PLATFORM_PS1\n#include <sys/stat.h>\n#include <errno.h>\n#endif\n')
+          s=s.replace('#else\n#include <unistd.h>\n#include <dirent.h>\n#define overlayMkdir(path) mkdir((path), 0777)\n#define overlayRmdir(path) rmdir(path)\n#endif', '#elif !defined(PLATFORM_PS1)\n#include <unistd.h>\n#include <dirent.h>\n#define overlayMkdir(path) mkdir((path), 0777)\n#define overlayRmdir(path) rmdir(path)\n#endif')
+          start=s.find('static bool pathExists(')
+          end=s.find('// ===[ Vtable Implementations ]===')
+          if start < 0 or end < 0: raise SystemExit("overlay filesystem markers not found")
+          prefix=s[:start]
+          suffix=s[end:]
+          ps1=r'''#ifdef PLATFORM_PS1
+static bool pathExists(const char* fullPath) {
+    FILE* f = fopen(fullPath, "rb");
+    if (f == nullptr) return false;
+    fclose(f);
+    return true;
+}
+static char* resolveForRead(OverlayFileSystem* ofs, const char* relativePath) {
+    (void)ofs;
+    return normalizePath(relativePath);
+}
+static char* resolveForWrite(OverlayFileSystem* ofs, const char* relativePath) {
+    (void)ofs;
+    return normalizePath(relativePath);
+}
+#else
+'''
+          # keep original helper implementations, but strip the old definitions by taking from pathExists onward
+          original=s[start:end]
+          # original includes normalizePath/isAbsolute/joinPath before pathExists? no; those stay in prefix
+          # extract through ensureParentDir and close before Vtable
+          # We need original helpers after pathExists, but only non-PS1.
+          s=prefix+ps1+original+'''#endif
+
+'''+suffix
+          # Disable directory/stat implementations on PS1 by replacing bodies with safe false/no-op.
+          s=s.replace('static bool overlayDirectoryExists(FileSystem* fs, const char* relativePath) {', '#ifndef PLATFORM_PS1\nstatic bool overlayDirectoryExists(FileSystem* fs, const char* relativePath) {')
+          s=s.replace('static bool overlayCreateDirectory(FileSystem* fs, const char* relativePath) {', 'static bool overlayCreateDirectory(FileSystem* fs, const char* relativePath) {')
+          # Add #endif immediately before Directory Enumeration section.
+          s=s.replace('// ===[ Directory Enumeration ]===', '#else\nstatic bool overlayDirectoryExists(FileSystem* fs, const char* relativePath) { (void)fs; (void)relativePath; return false; }\nstatic bool overlayCreateDirectory(FileSystem* fs, const char* relativePath) { (void)fs; (void)relativePath; return false; }\nstatic bool overlayDeleteDirectory(FileSystem* fs, const char* relativePath) { (void)fs; (void)relativePath; return false; }\n#endif\n\n// ===[ Directory Enumeration ]===')
+          # Disable the whole list implementation on PS1 and return null.
+          ds=s.find('static FileSystemDirEntry* overlayListDirectory(')
+          if ds>=0:
+              de=s.find('// ===[ Vtable ]===',ds)
+              body=s[ds:de]
+              s=s[:ds]+'#ifndef PLATFORM_PS1\n'+body+'#else\nstatic FileSystemDirEntry* overlayListDirectory(FileSystem* fs, const char* relativeDirPath) { (void)fs; (void)relativeDirPath; return nullptr; }\n#endif\n\n'+s[de:]
+          p.write_text(s)
+
+          p=Path("upstream/src/loop.c")
+          s=p.read_text()
+          s=s.replace('#include "overlay_file_system.h"\n', '#include "overlay_file_system.h"\n')
+          p.write_text(s)
+
           p=Path("upstream/src/noop_renderer.c")
           s=p.read_text()
           s=s.replace('#include "noop_renderer.h"', '#include "noop_renderer.h"\n#ifdef PLATFORM_PS1\n#include <psxetc.h>\n#include <psxgpu.h>\n#endif')
