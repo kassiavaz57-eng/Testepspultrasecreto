@@ -13,6 +13,11 @@
 #undef setTPage
 #define setTPage(p, x, ...) ((p)->tpage = (x))
 
+/* The default FntLoad(960,0) location used by PS1 examples overlaps the last
+ * indexed texture-page slot in this backend. Keep the debug/font texture in
+ * the unused right-hand VRAM area below the texture-page row instead. */
+#define FntLoad(x, y) FntLoad(320, 256)
+
 /* Accept both the complete 4-vertex form and the older sprite-part call that
  * supplies only the first three vertices. The latter is a rotated rectangle,
  * so the fourth vertex is the parallelogram completion. */
