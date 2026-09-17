@@ -34,6 +34,85 @@ jobs:
           p.write_text(s)
           PY
 
+      - name: Enable PS1 raster fallback in Butterscotch NOOP renderer
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path("upstream/src/noop_renderer.c")
+          s=p.read_text()
+          s=s.replace('#include "noop_renderer.h"', '#include "noop_renderer.h"\n#ifdef PLATFORM_PS1\n#include <psxetc.h>\n#include <psxgpu.h>\n#endif')
+          s=s.replace('typedef struct {\n    Renderer base;', '''#ifdef PLATFORM_PS1
+          #define PS1_OT_LEN 8
+          #define PS1_PRIM_BYTES 65536
+          static DISPENV ps1Disp[2];
+          static DRAWENV ps1Draw[2];
+          static uint32_t ps1Ot[2][PS1_OT_LEN];
+          static uint8_t ps1Prim[2][PS1_PRIM_BYTES];
+          static char *ps1Next;
+          static int ps1Db;
+          #endif
+
+          typedef struct {
+              Renderer base;''')
+          s=s.replace('static void noopInit(Renderer *renderer, DataWin *dataWin) {\n    renderer->dataWin = dataWin;', '''static void noopInit(Renderer *renderer, DataWin *dataWin) {
+              renderer->dataWin = dataWin;
+          #ifdef PLATFORM_PS1
+              ResetGraph(0);
+              SetDefDispEnv(&ps1Disp[0], 0, 0, 320, 240);
+              SetDefDispEnv(&ps1Disp[1], 0, 240, 320, 240);
+              SetDefDrawEnv(&ps1Draw[0], 0, 240, 320, 240);
+              SetDefDrawEnv(&ps1Draw[1], 0, 0, 320, 240);
+              setRGB0(&ps1Draw[0], 8, 8, 12);
+              setRGB0(&ps1Draw[1], 8, 8, 12);
+              ps1Draw[0].isbg = 1;
+              ps1Draw[1].isbg = 1;
+              ps1Db = 0;
+              PutDispEnv(&ps1Disp[0]);
+              PutDrawEnv(&ps1Draw[0]);
+              SetDispMask(1);
+          #endif''')
+          s=s.replace('static void noopBeginFrame(MAYBE_UNUSED Renderer *renderer, MAYBE_UNUSED int32_t gameW, MAYBE_UNUSED int32_t gameH, MAYBE_UNUSED int32_t windowW, MAYBE_UNUSED int32_t windowH) {}', '''static void noopBeginFrame(MAYBE_UNUSED Renderer *renderer, MAYBE_UNUSED int32_t gameW, MAYBE_UNUSED int32_t gameH, MAYBE_UNUSED int32_t windowW, MAYBE_UNUSED int32_t windowH) {
+          #ifdef PLATFORM_PS1
+              ClearOTagR(ps1Ot[ps1Db], PS1_OT_LEN);
+              ps1Next = (char *)ps1Prim[ps1Db];
+          #endif
+          }''')
+          s=s.replace('static void noopEndFrameEnd(MAYBE_UNUSED Renderer *renderer) {}', '''static void noopEndFrameEnd(MAYBE_UNUSED Renderer *renderer) {
+          #ifdef PLATFORM_PS1
+              DrawSync(0);
+              VSync(0);
+              PutDispEnv(&ps1Disp[ps1Db]);
+              PutDrawEnv(&ps1Draw[ps1Db]);
+              SetDispMask(1);
+              DrawOTag(ps1Ot[ps1Db] + (PS1_OT_LEN - 1));
+              ps1Db ^= 1;
+          #endif
+          }''')
+          old='static void noopDrawSprite(MAYBE_UNUSED Renderer *renderer, MAYBE_UNUSED int32_t tpagIndex, MAYBE_UNUSED float x, MAYBE_UNUSED float y, MAYBE_UNUSED float originX, MAYBE_UNUSED float originY, MAYBE_UNUSED float xscale, MAYBE_UNUSED float yscale, MAYBE_UNUSED float angleDeg, MAYBE_UNUSED uint32_t color, MAYBE_UNUSED float alpha) {}'
+          new='''static void noopDrawSprite(Renderer *renderer, int32_t tpagIndex, float x, float y, float originX, float originY, float xscale, float yscale, float angleDeg, uint32_t color, float alpha) {
+          #ifdef PLATFORM_PS1
+              (void)angleDeg; (void)alpha;
+              if (!renderer || !renderer->dataWin || tpagIndex < 0 || (uint32_t)tpagIndex >= renderer->dataWin->tpag.count) return;
+              TexturePageItem *t = &renderer->dataWin->tpag.items[tpagIndex];
+              int w = (int)((float)t->boundingWidth * (xscale < 0 ? -xscale : xscale));
+              int h = (int)((float)t->boundingHeight * (yscale < 0 ? -yscale : yscale));
+              if (w <= 0 || h <= 0 || ps1Next + sizeof(TILE) > (char *)ps1Prim[ps1Db] + PS1_PRIM_BYTES) return;
+              TILE *tile = (TILE *)ps1Next;
+              setTile(tile);
+              setXY0(tile, (int)x - (int)(originX * xscale), (int)y - (int)(originY * yscale));
+              setWH(tile, w, h);
+              setRGB0(tile, (color >> 16) & 255, (color >> 8) & 255, color & 255);
+              addPrim(ps1Ot[ps1Db] + (PS1_OT_LEN - 1), tile);
+              ps1Next += sizeof(TILE);
+          #else
+              (void)renderer; (void)tpagIndex; (void)x; (void)y; (void)originX; (void)originY; (void)xscale; (void)yscale; (void)angleDeg; (void)color; (void)alpha;
+          #endif
+          }'''
+          s=s.replace(old,new)
+          s=s.replace('#ifdef PLATFORM_PS1\n          #define PS1_OT_LEN', '#ifdef PLATFORM_PS1\n#define PS1_OT_LEN')
+          p.write_text(s)
+          PY
+
       - name: Build PS1 executable
         run: |
           export PSN00BSDK_LIBS="${PSN00BSDK_LIBS:-/opt/psn00bsdk/lib/libpsn00b}"
