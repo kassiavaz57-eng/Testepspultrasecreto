@@ -23,10 +23,16 @@ typedef struct { bool valid; uint16_t index, x, y; uint32_t lastUsed; } Ps1PageC
 /*
  * One PS1 texture-page primitive worth of a TPAG.
  *
- * x/y/width/height are atlas-local coordinates used by the current renderer
- * for clipping.  The additional crop/atlas dimensions preserve the original
- * TPAG mapping so the renderer can later distinguish GameMaker sprite-space
- * from physical atlas texels when atlas packing resized a cropped sprite.
+ * x/y/width/height identify the physical post-resize region inside the TPAG
+ * atlas rectangle. u/v identify the corresponding local coordinates in the
+ * PS1 VRAM texture page. crop* preserves the original pre-resize GameMaker
+ * sprite mapping: cropX/Y are offsets inside the original bounding box and
+ * cropW/H are the pre-resize dimensions of the content. atlasWidth/Height
+ * are the post-crop/post-resize physical dimensions from ATLAS.BIN.
+ *
+ * Keeping both coordinate spaces here is intentional. The renderer must not
+ * assume that one source pixel always equals one atlas texel: the official
+ * preprocessor can resize the cropped content while packing the atlas.
  */
 typedef struct {
     int16_t x, y;
