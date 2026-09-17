@@ -3,13 +3,13 @@
 
 #include "common.h"
 #include "stdio_compat.h"
+#include "ps1_texture_pages.h"
 #include <stdint.h>
 #include <stdbool.h>
 #include <psxgpu.h>
 
 #define PS1_TEXTURE_MAX_SLOTS 16
 #define PS1_CLUT4_CACHE_SLOTS 32
-/* VRAM area x=320..1023, y=480..511 fits two 256-word CLUT8s per row. */
 #define PS1_CLUT8_CACHE_SLOTS 64
 
 typedef struct {
@@ -63,6 +63,9 @@ typedef struct {
     Ps1ClutSlot clut4[PS1_CLUT4_CACHE_SLOTS];
     Ps1ClutSlot clut8[PS1_CLUT8_CACHE_SLOTS];
     uint32_t frameCounter;
+    /* Compatibility facade: the renderer's old API now resolves through the
+     * real page-aware backend instead of maintaining a second atlas cache. */
+    Ps1TexturePages pages;
 } Ps1TextureCache;
 
 bool Ps1TextureCache_init(Ps1TextureCache* cache);
