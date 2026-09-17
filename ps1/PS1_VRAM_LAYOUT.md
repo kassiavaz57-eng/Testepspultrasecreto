@@ -16,7 +16,7 @@ The bottom 32 VRAM lines are outside both framebuffers and the page row:
 - CLUT8: y = 480..495, four 256-word palettes per line
 - CLUT4: y = 496, 64 sixteen-word palettes
 
-This layout is intentional: `getTPage()` requires texture-page coordinates aligned to 64 words horizontally and 256 lines vertically. The page cache therefore maps each logical atlas page directly to one valid PS1 TPage. citeturn1search12turn1search0
+This layout is intentional: PS1 texture-page coordinates are aligned to 64 VRAM words horizontally and 256 lines vertically. The page cache therefore maps each logical atlas page directly to one valid PS1 TPage.
 
 ## Consequences
 
