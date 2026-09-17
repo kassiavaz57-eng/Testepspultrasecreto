@@ -8,9 +8,13 @@
 
 #define PS1_TEXTURE_BASE_X 320
 #define PS1_TEXTURE_BASE_Y 0
+/* The bottom 32 VRAM lines are outside both 320x240 framebuffers and the
+ * texture area.  Keep all palettes there so CLUT uploads cannot overwrite
+ * either rendered pixels or texture pages. */
 #define PS1_CLUT_BASE_X 320
-#define PS1_CLUT_Y 240
+#define PS1_CLUT_Y 480
 #define PS1_VRAM_WIDTH_WORDS 1024
+#define PS1_VRAM_HEIGHT 512
 #define CLUT4_BYTES 64
 #define CLUT8_BYTES 1024
 
@@ -20,7 +24,6 @@ static uint32_t readU32(FILE* f) { uint8_t b[4] = {0,0,0,0}; if (fread(b,1,4,f) 
 static bool readAtlasHeader(Ps1TextureCache* cache, FILE* f) {
     uint8_t version;
     if (fread(&version,1,1,f) != 1 || version != 0) return false;
-
     uint16_t tpagCount = readU16(f);
     uint16_t tileCount = readU16(f);
     uint16_t atlasCount = readU16(f);
@@ -29,9 +32,8 @@ static bool readAtlasHeader(Ps1TextureCache* cache, FILE* f) {
     cache->tpag = (Ps1AtlasTPAGEntry*)safeMalloc(sizeof(Ps1AtlasTPAGEntry) * tpagCount);
     cache->atlases = (Ps1AtlasInfo*)safeMalloc(sizeof(Ps1AtlasInfo) * atlasCount);
 
-    /* This is the layout used by the current PS2 gs_renderer:
-     * header -> atlas table -> TPAG table -> TILE table.
-     * TPAG records are 20 bytes and TILE records are 30 bytes. */
+    /* Match the current PS2 gs_renderer exactly:
+       header -> atlas table -> TPAG table -> TILE table. */
     repeat(atlasCount, i) {
         Ps1AtlasInfo* a = &cache->atlases[i];
         a->dataOffset = readU32(f);
@@ -58,11 +60,9 @@ static bool readAtlasHeader(Ps1TextureCache* cache, FILE* f) {
         e->clutIndex = readU16(f);
     }
 
-    /* We do not currently need TILE records in the PS1 texture cache, but the
-       file cursor must advance past them so future extensions can read the
-       following data from the correct position. */
+    /* TILE records are not needed for the first sprite path, but they must be
+       consumed so the parser remains synchronized with the real file format. */
     if (tileCount > 0 && fseek(f, (long)tileCount * 30L, SEEK_CUR) != 0) return false;
-
     return true;
 }
 
@@ -79,11 +79,8 @@ static bool uploadClutFile(Ps1TextureCache* cache,const char* path,uint8_t bpp) 
     FILE* f=fopen(devicePath,"rb");
     free(devicePath);
     if(!f) return false;
-
     uint32_t entryBytes=(bpp==4)?CLUT4_BYTES:CLUT8_BYTES;
-    fseek(f,0,SEEK_END);
-    long endPos=ftell(f);
-    fseek(f,0,SEEK_SET);
+    fseek(f,0,SEEK_END); long endPos=ftell(f); fseek(f,0,SEEK_SET);
     if(endPos<0){fclose(f);return false;}
 
     uint32_t count=(uint32_t)endPos/entryBytes;
@@ -102,8 +99,13 @@ static bool uploadClutFile(Ps1TextureCache* cache,const char* path,uint8_t bpp) 
         }
 
         uint16_t paletteWidth=(bpp==4)?16:256;
-        uint16_t x=(uint16_t)(PS1_CLUT_BASE_X+(i*paletteWidth)%(1024-PS1_CLUT_BASE_X));
-        uint16_t y=(uint16_t)(PS1_CLUT_Y+(i*paletteWidth)/(1024-PS1_CLUT_BASE_X));
+        uint16_t availableWidth=(uint16_t)(PS1_VRAM_WIDTH_WORDS-PS1_CLUT_BASE_X);
+        if (paletteWidth > availableWidth) { fclose(f); return false; }
+        uint16_t perRow=(uint16_t)(availableWidth/paletteWidth);
+        uint16_t x=(uint16_t)(PS1_CLUT_BASE_X+(i%perRow)*paletteWidth);
+        uint16_t y=(uint16_t)(PS1_CLUT_Y+(i/perRow));
+        if (y >= PS1_VRAM_HEIGHT) { fclose(f); return false; }
+
         RECT rect={x,y,paletteWidth,1};
         LoadImage(&rect,(uint32_t*)colors);
         DrawSync(0);
@@ -113,7 +115,6 @@ static bool uploadClutFile(Ps1TextureCache* cache,const char* path,uint8_t bpp) 
         slots[i].y=y;
         slots[i].lastUsed=cache->frameCounter;
     }
-
     fclose(f);
     return true;
 }
@@ -144,14 +145,10 @@ static uint32_t packIndexedPixels(const uint8_t* indexed,uint16_t width,uint16_t
     repeat(height,y) repeat(wordsPerRow,x){
         uint16_t word=0;
         if(bpp==4){
-            uint8_t p0=src<pixels?indexed[src++]:0;
-            uint8_t p1=src<pixels?indexed[src++]:0;
-            uint8_t p2=src<pixels?indexed[src++]:0;
-            uint8_t p3=src<pixels?indexed[src++]:0;
+            uint8_t p0=src<pixels?indexed[src++]:0,p1=src<pixels?indexed[src++]:0,p2=src<pixels?indexed[src++]:0,p3=src<pixels?indexed[src++]:0;
             word=(uint16_t)((p0&15)|((p1&15)<<4)|((p2&15)<<8)|((p3&15)<<12));
         }else{
-            uint8_t p0=src<pixels?indexed[src++]:0;
-            uint8_t p1=src<pixels?indexed[src++]:0;
+            uint8_t p0=src<pixels?indexed[src++]:0,p1=src<pixels?indexed[src++]:0;
             word=(uint16_t)(p0|((uint16_t)p1<<8));
         }
         out[y*wordsPerRow+x]=word;
@@ -171,7 +168,7 @@ static bool loadAtlas(Ps1TextureCache* cache,uint16_t atlasId){
     Ps1AtlasInfo* info=&cache->atlases[atlasId];
     uint32_t indexedSize=atlasPixelBytes(info->width,info->height,info->bpp);
     uint16_t words=(uint16_t)((info->bpp==4)?(((uint32_t)info->width+3)/4):(((uint32_t)info->width+1)/2));
-    if(words>256||info->height>256)return false;
+    if(words>256||info->height>PS1_VRAM_HEIGHT)return false;
 
     int slot=findFreeTextureSlot(cache);
     uint16_t baseX=0;bool placed=false;
@@ -216,7 +213,6 @@ static bool loadAtlas(Ps1TextureCache* cache,uint16_t atlasId){
     cache->textures[slot].height=info->height;
     cache->textures[slot].bpp=info->bpp;
     cache->textures[slot].lastUsed=++cache->frameCounter;
-
     free(compressed);free(indexed);free(packed);
     return true;
 }
@@ -266,7 +262,6 @@ bool Ps1TextureCache_resolveTPAG(Ps1TextureCache* cache,int32_t tpagIndex,uint16
     uint16_t tpageBase=Ps1TextureCache_getTPage(cache,e->atlasId);
     uint16_t clut=Ps1TextureCache_getClut(cache,info->bpp,e->clutIndex);
     if(tpageBase==0||clut==0)return false;
-
     uint16_t pagePixels=(info->bpp==4)?256:128;
     uint16_t pageX=(uint16_t)((e->atlasX/pagePixels)*pagePixels);
     uint16_t baseX=0;
