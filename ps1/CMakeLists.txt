@@ -36,7 +36,6 @@ set(PS1_SOURCES
     compat/math.c
     compat/libc.c
     gettime.c
-    "${UPSTREAM}/debug_overlay.c"
     "${UPSTREAM}/../vendor/md5/md5.c"
     "${UPSTREAM}/../vendor/base64/base64.c"
     "${UPSTREAM}/../vendor/sha1/sha1.c"
@@ -61,7 +60,8 @@ target_compile_definitions(butterscotch_ps1 PRIVATE
     PLATFORM_PS1
     DISABLE_SCREENSHOTS
 )
-target_compile_options(butterscotch_ps1 PRIVATE -ffunction-sections -fdata-sections)
+target_compile_options(butterscotch_ps1 PRIVATE -Os -flto -ffunction-sections -fdata-sections -fno-unwind-tables -fno-asynchronous-unwind-tables)
+target_link_options(butterscotch_ps1 PRIVATE -flto)
 target_link_options(butterscotch_ps1 PRIVATE -Wl,--gc-sections)
 
 # The real runtime reads DATA.WIN from the PS1 CD filesystem. Build the
