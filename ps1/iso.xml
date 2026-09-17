@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<iso_project image_name="butterscotch-ps1.bin" cue_sheet="butterscotch-ps1.cue">
+  <track type="data">
+    <identifiers
+      system="PLAYSTATION"
+      application="PLAYSTATION"
+      volume="BUTTERSCOTCH"
+      volume_set="BUTTERSCOTCH"
+      publisher="BUTTERSCOTCH"
+    />
+    <directory_tree>
+      <file name="SYSTEM.CNF" type="data" source="${PROJECT_SOURCE_DIR}/system.cnf" />
+      <file name="BUTTER.EXE" type="data" source="${PROJECT_BINARY_DIR}/butterscotch_ps1.exe" />
+      <file name="DATA.WIN" type="data" source="${PROJECT_SOURCE_DIR}/../data.win" />
+    </directory_tree>
+  </track>
+</iso_project>
