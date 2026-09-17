@@ -25,6 +25,7 @@ set(PS1_SOURCES
     compat/math.c
     compat/libc.c
     gettime.c
+    "${UPSTREAM}/src/debug_overlay.c"
     "${UPSTREAM}/../vendor/md5/md5.c"
     "${UPSTREAM}/../vendor/base64/base64.c"
     "${UPSTREAM}/../vendor/sha1/sha1.c"
