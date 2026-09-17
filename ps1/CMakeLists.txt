@@ -23,6 +23,7 @@ set(PS1_SOURCES
     main.c
     platform.c
     ps1_renderer.c
+    ps1_fast_renderer.c
     ps1_texture_cache.c
     ps1_texture_pages.c
     ps1_sprite_mapping.c
