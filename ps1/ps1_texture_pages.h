@@ -17,7 +17,10 @@
 #define PS1_TEX_PAGE_VRAM_X 320
 #define PS1_TEX_PAGE_VRAM_Y 0
 
-#define PS1_TEX_MAX_TPAG_PIECES 4
+/* A TPAG from the preprocessor is normally much smaller than a full atlas,
+ * but the format permits an atlas-sized rectangle.  32 pieces cover the
+ * maximum 1024x1024 atlas at 8bpp (8 pages across x 4 down). */
+#define PS1_TEX_MAX_TPAG_PIECES 32
 
 typedef struct {
     uint16_t atlasId;
@@ -77,7 +80,9 @@ typedef struct {
     Ps1PageAtlas* atlases;
     uint16_t atlasCount;
     Ps1PageSlot pages[PS1_TEX_PAGE_SLOTS];
-    Ps1PageClut clut4[32];
+    /* CLUT4.BIN can contain up to 64 palettes in the PS1 VRAM layout used by
+     * this backend: one 16-entry palette per 16-word slot on line 496. */
+    Ps1PageClut clut4[64];
     Ps1PageClut clut8[64];
     FILE* texturesFile;
     uint32_t frameCounter;
@@ -87,9 +92,9 @@ bool Ps1TexturePages_init(Ps1TexturePages* cache);
 void Ps1TexturePages_shutdown(Ps1TexturePages* cache);
 void Ps1TexturePages_beginFrame(Ps1TexturePages* cache);
 
-/* Resolves one TPAG rectangle into up to four page-local pieces. A piece never
- * crosses a PS1 texture-page boundary, so its UV coordinates are directly
- * usable by POLY_FT4/SPRT. */
+/* Resolves one TPAG rectangle into page-local pieces. A piece never crosses a
+ * PS1 texture-page boundary, so its UV coordinates are directly usable by
+ * POLY_FT4/SPRT. */
 uint16_t Ps1TexturePages_resolveTPAG(
     Ps1TexturePages* cache,
     int32_t tpagIndex,
