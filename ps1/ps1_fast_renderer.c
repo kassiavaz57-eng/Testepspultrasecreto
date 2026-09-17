@@ -1,5 +1,6 @@
 #include "ps1_fast_renderer.h"
 #include <math.h>
+#include <stdlib.h>
 
 /* Real GameMaker tiled-sprite path. Repetition is evaluated in room space;
    the origin may be outside the room, and only the visible source rectangle
@@ -78,7 +79,13 @@ static void ps1FastDrawSpriteTiled(Renderer* renderer, int32_t tpagIndex,
 
 void Ps1FastRenderer_install(Renderer* renderer) {
     if (!renderer || !renderer->vtable) return;
-    /* RoomTile stays in the core renderer: it has the dedicated ATLAS.BIN
-       lookup and the real TPAG fallback. */
-    renderer->vtable->drawSpriteTiled = ps1FastDrawSpriteTiled;
+
+    /* Ps1Renderer_create() historically built its vtable as a block-scope
+       compound literal. Take a persistent copy before changing the tiled
+       hook, so later Runner calls never depend on that expired stack object. */
+    RendererVTable* stable = (RendererVTable*)malloc(sizeof(*stable));
+    if (!stable) return;
+    *stable = *renderer->vtable;
+    stable->drawSpriteTiled = ps1FastDrawSpriteTiled;
+    renderer->vtable = stable;
 }
