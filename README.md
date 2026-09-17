@@ -1,9 +1,6 @@
-# Butterscotch PSP — platform overlay
+# Testepspultrasecreto
 
-Small PSP-only layer for the Butterscotch runtime. It deliberately excludes the upstream source tree.
+Projeto experimental de adaptação do Butterscotch Runner real para PlayStation 1, preservando a arquitetura DataWin → VM → Runner e implementando o backend PS1.
 
-The workflow clones upstream Butterscotch, checks that the expected APIs/CMake anchors still exist, applies the PSP files, validates the result, and then builds with PSPDEV.
-
-Current milestone: real PSP bootstrap + DataWin/Runner integration, PSP filesystem and controller input, 30 Hz update target. Rendering/audio are intentionally still no-op; the next milestone replaces those with PSP GU/audio backends.
-
-This is designed to fail clearly if upstream changes rather than silently compiling an incompatible overlay.
+## PS1
+A branch `ps1-experiment` contém a adaptação em andamento. O objetivo é executar dados reais do GameMaker/Butterscotch no hardware-alvo, sem substituir o engine por um protótipo simplificado.
