@@ -4,23 +4,28 @@
 #include <psxetc.h>
 #include "platformdefs.h"
 #include "log.h"
+#include "ps1_renderer.h"
 #include <stdarg.h>
-
+#include <stdio.h>
 
 bool platformInit(int32_t reqW, int32_t reqH, const char *title, bool headless) {
     (void)reqW; (void)reqH; (void)title; (void)headless;
     return true;
 }
+
 void platformInitFunctions(Runner *runner) { (void)runner; }
 void platformExit(void) {}
-void platformSwapBuffers(void) { VSync(0); }
+void platformSwapBuffers(void) { Ps1Renderer_present(); }
 void *platformGetProcAddress(const char *name) { (void)name; return NULL; }
 bool platformHandleEvents(void) { return false; }
 void platformGetMousePos(double *xPos, double *yPos) {
-    if (xPos) *xPos = 0.0; if (yPos) *yPos = 0.0;
+    if (xPos) *xPos = 0.0;
+    if (yPos) *yPos = 0.0;
 }
 bool platformGetWindowSize(int32_t *outW, int32_t *outH) {
-    if (outW) *outW = 320; if (outH) *outH = 240; return true;
+    if (outW) *outW = 320;
+    if (outH) *outH = 240;
+    return true;
 }
 bool platformGetScaledWindowSize(int32_t *outW, int32_t *outH) {
     return platformGetWindowSize(outW, outH);
