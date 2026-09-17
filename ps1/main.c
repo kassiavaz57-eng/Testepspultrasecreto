@@ -3,6 +3,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include <psxetc.h>
+#include <psxgpu.h>
 
 #include "runner.h"
 #include "runner_keyboard.h"
@@ -21,6 +22,26 @@
 #define PS1_GAME_WIDTH 320
 #define PS1_GAME_HEIGHT 240
 #define PS1_FRAME_NS 33333333ULL
+
+/* Temporary on-screen checkpoints: keep the real runtime intact while locating the early boot stop. */
+static DISPENV ps1DebugDisp;
+static DRAWENV ps1DebugDraw;
+
+static void ps1DebugGpuInit(void) {
+    ResetGraph(0);
+    SetDefDispEnv(&ps1DebugDisp, 0, 0, PS1_GAME_WIDTH, PS1_GAME_HEIGHT);
+    SetDefDrawEnv(&ps1DebugDraw, 0, 0, PS1_GAME_WIDTH, PS1_GAME_HEIGHT);
+    PutDispEnv(&ps1DebugDisp);
+    PutDrawEnv(&ps1DebugDraw);
+    SetDispMask(1);
+}
+
+static void ps1DebugColor(uint8_t r, uint8_t g, uint8_t b) {
+    RECT rect = {0, 0, PS1_GAME_WIDTH, PS1_GAME_HEIGHT};
+    ClearImage(&rect, r, g, b);
+    DrawSync(0);
+    for (int i = 0; i < 5; i++) VSync(0);
+}
 
 static bool ps1LoadDataWin(DataWin** outDataWin) {
     DataWinParserOptions options = {0};
@@ -107,13 +128,18 @@ static void ps1RunFrame(Runner* runner, int32_t gameW, int32_t gameH) {
 }
 
 int main(void) {
+    ps1DebugGpuInit();
+    ps1DebugColor(255, 0, 0);      /* RED: before any platform/runtime init */
+
     PS1Utils_init();
     Ps1Gamepad_init();
+    ps1DebugColor(255, 128, 0);    /* ORANGE: CD/gamepad init OK */
 
     DataWin* dataWin = NULL;
     if (!ps1LoadDataWin(&dataWin)) {
         while (true) VSync(0);
     }
+    ps1DebugColor(255, 255, 0);    /* YELLOW: real DataWin_parse OK */
 
     logInfo("Butterscotch PS1: WAD version %u, game=%s\n",
             dataWin->gen8.wadVersion,
@@ -135,6 +161,7 @@ int main(void) {
         DataWin_free(dataWin);
         while (true) VSync(0);
     }
+    ps1DebugColor(0, 255, 255);    /* CYAN: VM_create OK */
 
     Renderer* renderer = Ps1Renderer_create();
     if (renderer == NULL) {
@@ -147,6 +174,7 @@ int main(void) {
     /* The core renderer remains the same PS1 backend. These hooks only replace
        the two high-frequency room paths that were still placeholders. */
     Ps1FastRenderer_install(renderer);
+    ps1DebugColor(0, 0, 255);      /* BLUE: renderer setup OK */
 
     AudioSystem* audioSystem = (AudioSystem*) NoopAudioSystem_create();
     Runner* runner = Runner_create(dataWin, vm, renderer, fileSystem, audioSystem, 0);
@@ -157,9 +185,11 @@ int main(void) {
         DataWin_free(dataWin);
         while (true) VSync(0);
     }
+    ps1DebugColor(255, 0, 255);    /* MAGENTA: Runner_create OK */
 
     logInfo("Butterscotch PS1: initializing first real room\n");
     Runner_initFirstRoom(runner);
+    ps1DebugColor(255, 255, 255);  /* WHITE: first real room OK; entering game loop */
 
     const int32_t gameW = (int32_t) dataWin->gen8.defaultWindowWidth;
     const int32_t gameH = (int32_t) dataWin->gen8.defaultWindowHeight;
