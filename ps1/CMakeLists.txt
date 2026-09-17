@@ -13,8 +13,6 @@ file(GLOB CORE_SOURCES
 )
 list(FILTER CORE_SOURCES EXCLUDE REGEX ".*/data_win_print\\.c$")
 list(FILTER CORE_SOURCES EXCLUDE REGEX ".*/gettime\\.c$")
-list(FILTER CORE_SOURCES EXCLUDE REGEX ".*/profiler\\.c$")
-list(FILTER CORE_SOURCES EXCLUDE REGEX ".*/input_recording\\.c$")
 list(FILTER CORE_SOURCES EXCLUDE REGEX ".*/debug_overlay\\.c$")
 list(FILTER CORE_SOURCES EXCLUDE REGEX ".*/overlay_file_system\\.c$")
 list(FILTER CORE_SOURCES EXCLUDE REGEX ".*/backends/.*")
