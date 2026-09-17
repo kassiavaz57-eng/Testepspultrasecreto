@@ -35,6 +35,8 @@ jobs:
           test -s ps1/assets/TEXTURES.BIN
           test -s ps1/assets/CLUT4.BIN
           test -s ps1/assets/CLUT8.BIN
+          test -s ps1/assets/SOUNDBNK.BIN
+          test -s ps1/assets/SOUNDS.BIN
 
       - name: Build real Butterscotch core with PS1 backend
         run: |
@@ -54,8 +56,8 @@ jobs:
           cp ps1/assets/TEXTURES.BIN ps1/cd/TEXTURES.BIN
           cp ps1/assets/CLUT4.BIN ps1/cd/CLUT4.BIN
           cp ps1/assets/CLUT8.BIN ps1/cd/CLUT8.BIN
-          if [ -s ps1/assets/SOUNDBNK.BIN ]; then cp ps1/assets/SOUNDBNK.BIN ps1/cd/SOUNDBNK.BIN; fi
-          if [ -s ps1/assets/SOUNDS.BIN ]; then cp ps1/assets/SOUNDS.BIN ps1/cd/SOUNDS.BIN; fi
+          cp ps1/assets/SOUNDBNK.BIN ps1/cd/SOUNDBNK.BIN
+          cp ps1/assets/SOUNDS.BIN ps1/cd/SOUNDS.BIN
           printf 'BOOT=cdrom:\\BUTTER.EXE;1\nTCB=4\nEVENT=10\nSTACK=801FFFF0\n' > ps1/cd/SYSTEM.CNF
           cat > ps1/cd.xml <<'XML'
           <?xml version="1.0"?>
@@ -70,6 +72,8 @@ jobs:
                 <file name="TEXTURES.BIN" type="data" source="cd/TEXTURES.BIN"/>
                 <file name="CLUT4.BIN" type="data" source="cd/CLUT4.BIN"/>
                 <file name="CLUT8.BIN" type="data" source="cd/CLUT8.BIN"/>
+                <file name="SOUNDBNK.BIN" type="data" source="cd/SOUNDBNK.BIN"/>
+                <file name="SOUNDS.BIN" type="data" source="cd/SOUNDS.BIN"/>
               </directory_tree>
             </track>
           </iso_project>
