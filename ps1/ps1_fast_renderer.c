@@ -1,30 +1,9 @@
 #include "ps1_fast_renderer.h"
 #include <math.h>
 
-/* Fast room paths: keep the real DataWin/Runner pipeline and reuse the PS1
-   TPAG renderer. Unsupported special cases simply fall back instead of
-   corrupting the frame. */
-static void ps1FastDrawTile(Renderer* renderer, RoomTile* tile, float offsetX, float offsetY) {
-    if (!renderer || !tile || !renderer->dataWin || !renderer->vtable || !renderer->vtable->drawSpritePart) return;
-    int32_t tpagIndex = Renderer_resolveObjectTPAGIndex(renderer->dataWin, tile);
-    if (tpagIndex < 0 || (uint32_t)tpagIndex >= renderer->dataWin->tpag.count) return;
-    TexturePageItem* tpag = &renderer->dataWin->tpag.items[tpagIndex];
-    int32_t sx = tile->sourceX, sy = tile->sourceY;
-    int32_t sw = (int32_t)tile->width, sh = (int32_t)tile->height;
-    float dx = (float)tile->x + offsetX, dy = (float)tile->y + offsetY;
-    if (tpag->targetX > sx) { int32_t n = tpag->targetX - sx; dx += n * tile->scaleX; sx += n; sw -= n; }
-    if (tpag->targetY > sy) { int32_t n = tpag->targetY - sy; dy += n * tile->scaleY; sy += n; sh -= n; }
-    int32_t right = tpag->targetX + tpag->sourceWidth;
-    int32_t bottom = tpag->targetY + tpag->sourceHeight;
-    if (sx + sw > right) sw = right - sx;
-    if (sy + sh > bottom) sh = bottom - sy;
-    if (sw <= 0 || sh <= 0) return;
-    sx -= tpag->targetX; sy -= tpag->targetY;
-    renderer->vtable->drawSpritePart(renderer, tpagIndex, sx, sy, sw, sh,
-        dx, dy, tile->scaleX, tile->scaleY, 0.0f, 0.0f, 0.0f,
-        tile->color & 0x00FFFFFFu, tile->alpha);
-}
-
+/* Fast room paths: keep the real DataWin/Runner pipeline. RoomTile rendering
+   stays in the core PS1 renderer because it now has direct ATLAS.BIN tile
+   lookup and physical atlas-page resolution; this hook only owns tiled sprites. */
 static void ps1FastDrawSpriteTiled(Renderer* renderer, int32_t tpagIndex,
     float originX, float originY, float x, float y, float xscale, float yscale,
     bool tileX, bool tileY, float roomW, float roomH, uint32_t color, float alpha) {
@@ -54,6 +33,6 @@ static void ps1FastDrawSpriteTiled(Renderer* renderer, int32_t tpagIndex,
 
 void Ps1FastRenderer_install(Renderer* renderer) {
     if (!renderer || !renderer->vtable) return;
-    renderer->vtable->drawTile = ps1FastDrawTile;
+    /* drawTile intentionally remains the core renderer implementation. */
     renderer->vtable->drawSpriteTiled = ps1FastDrawSpriteTiled;
 }
