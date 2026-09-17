@@ -122,8 +122,7 @@ jobs:
     return ((NoopBinaryHandle*) handle)->size;
 }''')
           p.write_text(s)
-
-                    p=Path("upstream/src/noop_renderer.c")
+          p=Path("upstream/src/noop_renderer.c")
           s=p.read_text()
           s=s.replace('#include "noop_renderer.h"', '#include "noop_renderer.h"\n#ifdef PLATFORM_PS1\n#include <psxetc.h>\n#include <psxgpu.h>\n#endif')
 
