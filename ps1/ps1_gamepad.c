@@ -6,6 +6,9 @@
 #include "string_compat.h"
 #include "log.h"
 
+/* PSn00bSDK requires two pad buffers for the two controller ports. */
+static uint8_t ps1_pad_buffers[2][34];
+
 void Ps1Gamepad_poll(RunnerGamepadState* gp, int port) {
     if (gp == nullptr || port < 0 || port >= 2 || port >= MAX_GAMEPADS) return;
 
@@ -16,8 +19,8 @@ void Ps1Gamepad_poll(RunnerGamepadState* gp, int port) {
     memset(slot->axisValue, 0, sizeof(slot->axisValue));
 
     /* PSn00bSDK's PADTYPE is populated by InitPAD/StartPAD. */
-    PADTYPE* pad = (PADTYPE*) pad_buff[port];
-    if (pad == nullptr || pad->stat != 0) {
+    PADTYPE* pad = (PADTYPE*) ps1_pad_buffers[port];
+    if (pad->stat != 0) {
         slot->connected = false;
         slot->guid[0] = '\0';
         return;
@@ -67,4 +70,12 @@ void Ps1Gamepad_poll(RunnerGamepadState* gp, int port) {
     }
 
     gp->connectedCount++;
+}
+
+/* Called once during platform startup. */
+void Ps1Gamepad_init(void) {
+    InitPAD(ps1_pad_buffers[0], sizeof(ps1_pad_buffers[0]),
+            ps1_pad_buffers[1], sizeof(ps1_pad_buffers[1]));
+    StartPAD();
+    ChangeClearPAD(0);
 }
