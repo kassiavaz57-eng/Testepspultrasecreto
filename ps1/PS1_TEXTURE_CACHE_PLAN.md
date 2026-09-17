@@ -1,6 +1,6 @@
 # PS1 texture cache architecture
 
-This document records the PS1 texture-cache design before the next validation build.
+This document records the PS1 texture-cache design and the remaining renderer work before validation.
 
 ## Source format
 
@@ -11,7 +11,7 @@ The runtime consumes the assets produced by the official Butterscotch preprocess
 - `CLUT4.BIN`
 - `CLUT8.BIN`
 
-The PS1 backend must preserve the upstream atlas/TPAG coordinate semantics. It must not invent a second asset format.
+The PS1 backend preserves the upstream atlas/TPAG coordinate semantics and does not invent a second asset format.
 
 ## PS1 residency model
 
@@ -22,7 +22,7 @@ For indexed textures:
 - 4bpp: one 32 KiB texture page represents 256x256 source pixels.
 - 8bpp: one 32 KiB texture page represents 128x256 source pixels.
 
-A cache entry is therefore keyed by atlas + page coordinates + bpp. Entries are loaded on demand and evicted with LRU when their VRAM slot is needed.
+A cache entry is keyed by atlas + page coordinates + bpp. Entries are loaded on demand and evicted with LRU when their VRAM slot is needed.
 
 ## TPAG resolution
 
@@ -34,29 +34,32 @@ A TPAG references a rectangle in an atlas. Resolution must:
 4. convert atlas coordinates into page-local UV coordinates;
 5. return the PS1 TPage/CLUT for each page.
 
-A sprite rectangle that crosses a PS1 page boundary cannot be represented by one `POLY_FT4` with wrapped 8-bit UVs. The renderer must split it into page-contained pieces.
+A sprite rectangle that crosses a PS1 page boundary cannot be represented by one `POLY_FT4` with wrapped 8-bit UVs. The renderer therefore consumes page-contained pieces.
 
 ## Implemented page backend
 
-`ps1_texture_pages.c/.h` now contains the concrete page-oriented backend:
+`ps1_texture_pages.c/.h` contains the concrete page-oriented backend:
 
 - parses the official `ATLAS.BIN` atlas and TPAG tables;
 - preserves the official RLE compression type 1 semantics;
-- decodes compressed atlas data directly into a single 32 KiB page buffer instead of materializing a whole atlas;
+- decodes compressed atlas data directly into one 32 KiB page buffer instead of materializing a whole atlas;
 - reads only the required rows for uncompressed atlases;
 - uses fixed 64-word x 256-line PS1 texture-page slots outside the 320-pixel framebuffer width;
 - tracks `(atlasId, pageX, pageY, bpp)` and frame LRU state;
-- treats pages touched by the current frame as pinned, preventing a later texture lookup from silently overwriting a page that an already-built primitive still references;
+- treats pages touched by the current frame as pinned, preventing a later texture lookup from silently overwriting a page referenced by an already-built primitive;
 - converts TPAG rectangles into page-contained pieces with local U/V coordinates;
-- uploads CLUT4/CLUT8 palettes into the unused bottom VRAM lines using PS1-valid CLUT alignment.
+- uploads CLUT4/CLUT8 palettes into the unused bottom VRAM lines using PS1-valid CLUT alignment;
+- keeps the 32 KiB decode buffer inside the heap-owned cache object rather than allocating it on the PS1 thread stack.
 
-The CMake target now compiles this backend as part of the PS1 executable source set.
+The CMake target compiles this backend as part of the PS1 executable source set, and the PS1 renderer now resolves sprites through this page backend.
 
-## Important renderer integration constraint
+## Remaining renderer correctness work
 
-The new page backend is deliberately not substituted into the existing renderer with a partial compatibility shim. The renderer must consume the returned page pieces and emit one primitive per piece. Until that integration is complete, the older atlas cache remains the active renderer path.
+The current page splitting is structurally real, but TPAG sprite rendering still needs to mirror the upstream renderer's crop coordinate system exactly. In particular, `cropX/cropY/cropW/cropH` are sprite/source-space data while `atlasX/atlasY/width/height` are atlas-space data; the PS1 renderer must preserve that distinction, including atlas down-scaling ratios.
 
-This avoids introducing a false "working" state where sprites crossing page boundaries silently wrap or where a later lookup evicts a page referenced by an earlier primitive.
+Background/tile rendering and surface-backed rendering are also still incomplete. They must be implemented from the corresponding upstream renderer/data structures rather than replaced with placeholder geometry.
+
+The page cache has 11 resident texture-page slots. Pages are pinned for the current frame, so if a frame requires more than 11 distinct pages before submission, the backend currently fails the lookup instead of overwriting an in-use page. A later batching/submission strategy must address this safely.
 
 ## Memory rules
 
@@ -66,4 +69,4 @@ The implementation reuses the upstream compression/decompression semantics and s
 
 ## Validation policy
 
-No GitHub Actions build is required for every intermediate edit. Code can be committed to the `ps1-experiment` branch as checkpointed progress. A validation build should be requested only after the page backend, renderer piece splitting, and asset packaging form one coherent implementation milestone.
+No GitHub Actions build is required for every intermediate edit. Code can be committed to the `ps1-experiment` branch as checkpointed progress. A validation build should be requested only after the page backend, renderer piece splitting, background/tile paths, and asset packaging form one coherent implementation milestone.
