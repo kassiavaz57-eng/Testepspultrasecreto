@@ -5,9 +5,9 @@
 static int ps1_file_initialized;
 
 /* CD-ROM is initialized once by PS1Utils_init() before the real DataWin
-   parser starts. Do not call CdInit() again from every FILE operation: the
-   CD controller reset changes its mode/state and can interrupt an in-flight
-   real DATA.WIN read. */
+   parser starts. Do not call CdInit() again from every FILE operation:
+   the CD controller reset changes its mode/state and can interrupt an
+   in-flight real DATA.WIN read. */
 static void ps1_file_init(void) {
     ps1_file_initialized = 1;
 }
@@ -35,6 +35,7 @@ static int ps1_load_sector(FILE *f, uint32_t sector) {
     f->sectorValid = 1;
     return 1;
 }
+
 FILE *fopen(const char *path, const char *mode) {
     FILE *f;
     if (!path || !mode || mode[0] != 'r') return NULL;
@@ -97,11 +98,12 @@ size_t fread(void *ptr, size_t size, size_t count, FILE *f) {
     if (want > f->size - f->pos) want = f->size - f->pos;
     while (done < want) {
         uint32_t sector = f->pos / 2048u;
-        uint32_t off = f->pos & 2047u;
         size_t n;
+        uint32_t off;
         if (!f->sectorValid || sector < f->sectorBase / 2048u || sector >= f->sectorBase / 2048u + f->sectorCount) {
             if (!ps1_load_sector(f, sector)) break;
         }
+        off = f->pos - f->sectorBase;
         n = (size_t)f->sectorCount * 2048u - off;
         if (n > want - done) n = want - done;
         memcpy(out + done, f->sector + off, n);
