@@ -1,6 +1,8 @@
 name: Butterscotch PS1
 
 on:
+  push:
+    branches: [ps1-experiment]
   workflow_dispatch:
 
 jobs:
