@@ -62,8 +62,13 @@ static bool parseAtlas(Ps1TexturePages* c, FILE* f) {
 }
 
 static uint16_t rgbaToPs1(uint8_t r, uint8_t g, uint8_t b, uint8_t a) {
+    /* PS1 bit 15 is the semi-transparency flag. Opaque palette entries must
+     * not set it, otherwise a normal translucent draw mode would make every
+     * opaque texel participate in blending. Fully transparent black remains
+     * zero, matching the PS1 transparent color convention. */
+    if (a == 0) return 0;
     uint16_t v = (uint16_t)((r >> 3) | ((g >> 3) << 5) | ((b >> 3) << 10));
-    if (a != 0) v |= 0x8000u;
+    if (a < 255) v |= 0x8000u;
     return v;
 }
 
@@ -116,7 +121,10 @@ static uint32_t pageByteWidth(void) { return 128u; }
 
 static bool decodeRaw(FILE* f, const Ps1PageAtlas* a, uint16_t px, uint16_t py, uint8_t* out) {
     const uint32_t rb = rowBytes(a), bw = pageByteWidth();
-    const uint32_t sx = (uint32_t)px * 128u, sy = (uint32_t)py * 256u;
+    const uint32_t pageW = pagePixelWidth(a);
+    const uint32_t sxPixels = (uint32_t)px * pageW;
+    const uint32_t sx = sxPixels / (a->bpp == 4 ? 2u : 1u);
+    const uint32_t sy = (uint32_t)py * 256u;
     memset(out, 0, PS1_TEX_PAGE_BYTES);
     for (uint32_t y = 0; y < 256u; ++y) {
         uint32_t srcY = sy + y;
