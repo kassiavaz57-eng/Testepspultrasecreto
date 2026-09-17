@@ -83,6 +83,16 @@ static inline float fminf(float a,float b){return a<b?a:b;}
 static inline float fmaxf(float a,float b){return a>b?a:b;}
 static inline float nextafterf(float x,float y){if(x==y)return y;union{float f;uint32_t u;}a;a.f=x;if(x==0.0f){a.u=y>0.0f?1u:0x80000001u;return a.f;}if((y>x)==(x>0.0f))++a.u;else--a.u;return a.f;}
 static inline long lround(double x){return x>=0.0?(long)(x+0.5):(long)(x-0.5);}
+static inline double fmin(double a,double b){return a<b?a:b;}
+static inline double fmax(double a,double b){return a>b?a:b;}
+static inline double tan(double x){return (double)tanf((float)x);}
+static inline double atan(double x){return (double)atanf((float)x);}
+static inline double asin(double x){return (double)asinf((float)x);}
+static inline double acos(double x){return (double)acosf((float)x);}
+static inline double log(double x){return (double)logf((float)x);}
+static inline double log2(double x){return (double)log2f((float)x);}
+static inline double log10(double x){return (double)log10f((float)x);}
+static inline double pow(double x,double y){return (double)powf((float)x,(float)y);}
 #define isnan(x) ps1_isnanf((float)(x))
 #define isinf(x) ps1_isinff((float)(x))
 #endif
