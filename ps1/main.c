@@ -1,13 +1,9 @@
-#include <psxetc.h>
-#include <psxcd.h>
 #include "loop.h"
+#include "platformdefs.h"
 
 #define DATA_WIN_PATH "\\DATA.WIN;1"
 
 int main(void) {
-    ResetGraph(0);
-    CdInit();
-
     CommandLineArgs args = {0};
     args.exitAtFrame = -1;
     args.speedMultiplier = 1.0;
@@ -18,7 +14,7 @@ int main(void) {
     args.lazyRooms = true;
     args.lazyTextures = true;
     args.lazyAudio = true;
-    args.renderer = NOOP;
+    args.renderer = PS1;
     args.dataWinPath = DATA_WIN_PATH;
 
     return loop(args, "BUTTER.EXE");
