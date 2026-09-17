@@ -38,6 +38,8 @@ typedef struct {
     uint16_t atlasId;
     int16_t x;
     int16_t y;
+    uint16_t widthWords;
+    uint16_t height;
     uint8_t bpp;
     uint32_t lastUsed;
 } Ps1TextureSlot;
