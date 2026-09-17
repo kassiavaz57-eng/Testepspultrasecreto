@@ -84,6 +84,19 @@ jobs:
               PutDispEnv(&ps1Disp[ps1Db]);
               PutDrawEnv(&ps1Draw[ps1Db]);
               SetDispMask(1);
+              /* Temporary visible GPU proof: remove after real textures work. */
+              ClearOTagR(ps1Ot[ps1Db], PS1_OT_LEN);
+              ps1Next = ps1Prim[ps1Db];
+              TILE *proof = (TILE *)ps1Next;
+              setTile(proof);
+              setXY0(proof, 96, 72);
+              setWH(proof, 128, 96);
+              setRGB0(proof, 64, 192, 255);
+              addPrim(ps1Ot[ps1Db] + PS1_OT_LEN - 1, proof);
+              ps1Next += sizeof(TILE);
+              DrawOTag(ps1Ot[ps1Db] + PS1_OT_LEN - 1);
+              DrawSync(0);
+              VSync(0);
           #endif
           }''')
 
