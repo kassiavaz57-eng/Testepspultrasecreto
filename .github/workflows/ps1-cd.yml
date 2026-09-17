@@ -2,9 +2,6 @@ name: Butterscotch PS1 CD
 
 on:
   workflow_dispatch:
-  push:
-    branches: [ps1-experiment]
-    paths: ["ps1/**", "data.win", ".github/workflows/ps1-cd.yml"]
 
 jobs:
   build:
