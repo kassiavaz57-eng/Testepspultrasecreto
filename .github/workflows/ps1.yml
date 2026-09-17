@@ -19,7 +19,13 @@ jobs:
 
       - name: Fix PS1 renderer source syntax
         run: |
-          sed -i 's/static void ps1EndView(Renderer\*r){(void)r}/static void ps1EndView(Renderer*r){(void)r;}/' ps1/ps1_renderer.c
+          sed -i 's/static void ps1EndView(Renderer\\*r){(void)r}/static void ps1EndView(Renderer*r){(void)r;}/' ps1/ps1_renderer.c
+          sed -i 's/\\.drawSetBlendMode=ps1DrawSetBlendMode/\\.gpuSetBlendMode=ps1DrawSetBlendMode/' ps1/ps1_renderer.c
+          sed -i 's/,\\.drawSetAlphaTest=ps1DrawSetAlphaTest/,/' ps1/ps1_renderer.c
+          sed -i 's/,\\.drawSetColorWriteMask=ps1DrawSetColorWriteMask/,/' ps1/ps1_renderer.c
+          sed -i 's/,\\.drawSetBlendEnable=ps1DrawSetBlendEnable/,/' ps1/ps1_renderer.c
+          sed -i 's/,\\.drawSetBlendFactors=ps1DrawSetBlendFactors/,/' ps1/ps1_renderer.c
+          sed -i 's/,\\.present=ps1Present/,/' ps1/ps1_renderer.c
 
       - name: Build PS1 executable
         run: |
