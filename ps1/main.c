@@ -5,6 +5,7 @@
 #include <psxetc.h>
 
 #include "runner.h"
+#include "runner_keyboard.h"
 #include "runner_gamepad.h"
 #include "../data_win.h"
 #include "../vm.h"
@@ -44,9 +45,8 @@ static bool ps1LoadDataWin(DataWin** outDataWin) {
     options.parseFunc = true;
     options.parseStrg = true;
 
-    /* The PS1 cannot afford to materialize every large asset section. Keep the
-       same real DataWin parser and use its lazy room path; texture/audio blobs
-       are supplied by the PS1 backend when those systems are integrated. */
+    /* Keep the real DataWin parser while avoiding eager materialization of the
+       largest asset sections on the PS1's very small RAM budget. */
     options.parseTxtr = false;
     options.parseAudo = false;
     options.skipLoadingPreciseMasksForNonPreciseSprites = true;
@@ -115,8 +115,8 @@ int main(void) {
             dataWin->gen8.wadVersion,
             dataWin->gen8.displayName);
 
-    /* This is the PS2 bootstrap order reduced to PS1 hardware primitives:
-       DataWin -> VM -> Renderer/Filesystem -> Runner -> first room -> loop. */
+    /* Same architectural order as the PS2 backend, with PS1-specific
+       implementations substituted at the platform boundaries. */
     FileSystem* fileSystem = Ps1FileSystem_create(NULL, dataWin->gen8.displayName);
     if (fileSystem == NULL) {
         logError("Butterscotch PS1: failed to create PS1 filesystem\n");
