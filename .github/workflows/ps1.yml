@@ -17,6 +17,10 @@ jobs:
         run: |
           git clone --depth 1 https://github.com/ButterscotchRunner/Butterscotch.git upstream
 
+      - name: Fix PS1 renderer source syntax
+        run: |
+          sed -i 's/static void ps1EndView(Renderer\*r){(void)r}/static void ps1EndView(Renderer*r){(void)r;}/' ps1/ps1_renderer.c
+
       - name: Build PS1 executable
         run: |
           export PSN00BSDK_LIBS="${PSN00BSDK_LIBS:-/opt/psn00bsdk/lib/libpsn00b}"
