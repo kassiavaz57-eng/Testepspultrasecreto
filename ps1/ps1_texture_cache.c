@@ -14,15 +14,6 @@
 #define CLUT4_BYTES 64
 #define CLUT8_BYTES 1024
 
-typedef struct {
-    uint32_t offset;
-    uint16_t width;
-    uint16_t height;
-    uint8_t bpp;
-    uint32_t dataSize;
-    uint8_t compression;
-} AtlasDiskEntry;
-
 static uint16_t readU16(FILE* f) {
     uint8_t b[2] = {0, 0};
     if (fread(b, 1, 2, f) != 2) return 0;
@@ -37,15 +28,21 @@ static uint32_t readU32(FILE* f) {
 static bool readAtlasHeader(Ps1TextureCache* cache, FILE* f) {
     uint8_t version;
     if (fread(&version, 1, 1, f) != 1 || version != 0) return false;
+
     uint16_t tpagCount = readU16(f);
     uint16_t tileCount = readU16(f);
     uint16_t atlasCount = readU16(f);
-    (void)tileCount;
+
     cache->tpagCount = tpagCount;
     cache->atlasCount = atlasCount;
     cache->tpag = (Ps1AtlasTPAGEntry*)safeMalloc(sizeof(Ps1AtlasTPAGEntry) * tpagCount);
     cache->atlases = (Ps1AtlasInfo*)safeMalloc(sizeof(Ps1AtlasInfo) * atlasCount);
 
+    /* ATLAS.BIN layout is:
+     * header, atlas table, tile table, TPAG table.
+     * A tile entry is 15 little-endian 16-bit fields (30 bytes).
+     * The PS1 cache only needs TPAG + atlas metadata, so skip the tile
+     * records without trying to reinterpret them as TPAG records. */
     repeat(atlasCount, i) {
         Ps1AtlasInfo* a = &cache->atlases[i];
         a->dataOffset = readU32(f);
@@ -56,6 +53,11 @@ static bool readAtlasHeader(Ps1TextureCache* cache, FILE* f) {
         if (fread(&a->compression, 1, 1, f) != 1) return false;
         if (a->bpp != 4 && a->bpp != 8) return false;
         if (a->width == 0 || a->height == 0 || a->width > 256 || a->height > 256) return false;
+    }
+
+    if (tileCount > 0) {
+        long tileBytes = (long)tileCount * 30L;
+        if (fseek(f, tileBytes, SEEK_CUR) != 0) return false;
     }
 
     repeat(tpagCount, i) {
@@ -250,6 +252,7 @@ bool Ps1TextureCache_init(Ps1TextureCache* cache) {
 }
 
 void Ps1TextureCache_shutdown(Ps1TextureCache* cache) {
+    if (!cache) return;
     if (!cache) return;
     free(cache->tpag);
     free(cache->atlases);
