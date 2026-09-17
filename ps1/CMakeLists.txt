@@ -63,3 +63,8 @@ target_compile_definitions(butterscotch_ps1 PRIVATE
 )
 target_compile_options(butterscotch_ps1 PRIVATE -ffunction-sections -fdata-sections)
 target_link_options(butterscotch_ps1 PRIVATE -Wl,--gc-sections)
+
+# The real runtime reads DATA.WIN from the PS1 CD filesystem. Build the
+# executable and a matching BIN/CUE image together so the artifact is actually
+# bootable with the real game data instead of being an EXE-only bootstrap.
+psn00bsdk_add_cd_image(butterscotch_ps1_cd butterscotch-ps1 iso.xml DEPENDS butterscotch_ps1 "${CMAKE_CURRENT_LIST_DIR}/../data.win")
