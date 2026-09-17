@@ -3,6 +3,7 @@
 
 #include "runner_gamepad.h"
 
-void Ps2Gamepad_poll(RunnerGamepadState* gp, int port);
+/* PS1 pad backend. PSn00bSDK exposes the controller as PADTYPE. */
+void Ps1Gamepad_poll(RunnerGamepadState* gp, int port);
 
 #endif /* _BS_PS1_GAMEPAD_H_ */
