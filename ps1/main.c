@@ -168,7 +168,8 @@ int main(void) {
         }
         lastFrame = now;
 
-        runner->deltaTime = (double) elapsed / 1000000.0;
+        /* Butterscotch's real loop stores deltaTime in microseconds. */
+        runner->deltaTime = (double) elapsed / 1000.0;
         ps1RunFrame(runner, gameW, gameH);
     }
 
