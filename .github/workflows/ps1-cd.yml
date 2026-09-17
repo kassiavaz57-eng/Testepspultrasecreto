@@ -133,7 +133,7 @@ jobs:
           #ifdef PLATFORM_PS1
               RECT r;
               r.x = 0; r.y = 0; r.w = 320; r.h = 240;
-              setRGB0((DR_T *)0, 0, 0, 0);
+              (void)renderer; (void)color; (void)alpha;
           #endif
           }''')
           p.write_text(s)
