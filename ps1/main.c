@@ -20,7 +20,7 @@
 
 #define PS1_GAME_WIDTH 320
 #define PS1_GAME_HEIGHT 240
-#define PS1_FRAME_NS 16666667ULL
+#define PS1_FRAME_NS 33333333ULL
 
 static bool ps1LoadDataWin(DataWin** outDataWin) {
     DataWinParserOptions options = {0};
@@ -52,6 +52,9 @@ static bool ps1LoadDataWin(DataWin** outDataWin) {
     options.parseAudo = false;
     options.skipLoadingPreciseMasksForNonPreciseSprites = true;
     options.lazyLoadRooms = true;
+    options.lazyLoadTextures = true;
+    options.lazyLoadAudio = true;
+    options.loadType = DATAWINLOADTYPE_LOAD_PER_CHUNK;
 
     char* path = PS1Utils_createDevicePath("DATA.WIN");
     logInfo("Butterscotch PS1: loading real %s\n", path);
