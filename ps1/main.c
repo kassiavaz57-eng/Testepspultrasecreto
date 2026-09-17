@@ -13,6 +13,7 @@
 #include "ps1_utils.h"
 #include "ps1_file_system.h"
 #include "ps1_renderer.h"
+#include "ps1_fast_renderer.h"
 #include "ps1_gamepad.h"
 #include "log.h"
 #include "gettime.h"
@@ -139,6 +140,10 @@ int main(void) {
         DataWin_free(dataWin);
         while (true) VSync(0);
     }
+
+    /* The core renderer remains the same PS1 backend. These hooks only replace
+       the two high-frequency room paths that were still placeholders. */
+    Ps1FastRenderer_install(renderer);
 
     AudioSystem* audioSystem = (AudioSystem*) NoopAudioSystem_create();
     Runner* runner = Runner_create(dataWin, vm, renderer, fileSystem, audioSystem, 0);
