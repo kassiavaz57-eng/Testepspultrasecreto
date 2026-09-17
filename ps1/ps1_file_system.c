@@ -24,7 +24,7 @@ static bool fileExists(FileSystem* fs,const char* name){Ps1FileSystem*p=(Ps1File
 static char* readText(FileSystem* fs,const char* name){Ps1FileSystem*p=(Ps1FileSystem*)fs;ptrdiff_t i=find(p,name);if(i<0)return NULL;for(int j=0;j<arrlen(p->mappings[i].value);j++){FILE*f=fopen(p->mappings[i].value[j],"rb");if(!f)continue;fseek(f,0,SEEK_END);long n=ftell(f);fseek(f,0,SEEK_SET);char*b=(char*)safeMalloc((size_t)n+1);size_t got=fread(b,1,(size_t)n,f);b[got]=0;fclose(f);return b;}return NULL;}
 static bool writeText(FileSystem*fs,const char*name,const char*data){(void)fs;(void)name;(void)data;return false;}
 static bool deleteFile(FileSystem*fs,const char*name){(void)fs;(void)name;return false;}
-static bool readBinary(FileSystem*fs,const char*name,uint8_t**out,int32_t*size){char*t=readText(fs,name);if(!t)return false;*size=(int32_t)strlen(t);*out=(uint8_t*)t;return true;}
+static bool readBinary(FileSystem*fs,const char*name,uint8_t**out,int32_t*size){Ps1FileSystem*p=(Ps1FileSystem*)fs;ptrdiff_t i=find(p,name);if(i<0)return false;for(int j=0;j<arrlen(p->mappings[i].value);j++){FILE*f=fopen(p->mappings[i].value[j],"rb");if(!f)continue;fseek(f,0,SEEK_END);long n=ftell(f);fseek(f,0,SEEK_SET);uint8_t*b=(uint8_t*)safeMalloc((size_t)n);size_t got=fread(b,1,(size_t)n,f);fclose(f);*out=b;*size=(int32_t)got;return true;}return false;}
 static bool writeBinary(FileSystem*fs,const char*name,const uint8_t*d,int32_t n){(void)fs;(void)name;(void)d;(void)n;return false;}
 typedef struct{FILE*f;} Ps1Binary;
 static void* binOpen(FileSystem*fs,const char*name,int32_t mode){if(mode!=GML_FILE_BIN_READ)return NULL;char*p=resolvePath(fs,name);if(!p)return NULL;FILE*f=fopen(p,"rb");free(p);if(!f)return NULL;Ps1Binary*h=(Ps1Binary*)safeMalloc(sizeof(*h));h->f=f;return h;}
