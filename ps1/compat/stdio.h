@@ -30,6 +30,7 @@ int fputc(int c, FILE *f);
 int setvbuf(FILE *f, char *buf, int mode, size_t size);
 int fileno(FILE *f);
 int fflush(FILE *f);
+int printf(const char *fmt, ...);
 int fprintf(FILE *f, const char *fmt, ...);
 int vfprintf(FILE *f, const char *fmt, va_list ap);
 int fputs(const char *s, FILE *f);
