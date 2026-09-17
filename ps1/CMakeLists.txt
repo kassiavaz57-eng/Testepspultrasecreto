@@ -21,6 +21,10 @@ list(FILTER CORE_SOURCES EXCLUDE REGEX ".*/cli/.*")
 set(PS1_SOURCES
     main.c
     platform.c
+    ps1_renderer.c
+    ps1_file_system.c
+    ps1_gamepad.c
+    ps1_utils.c
     compat/stdio.c
     compat/math.c
     compat/libc.c
@@ -44,7 +48,6 @@ target_include_directories(butterscotch_ps1 BEFORE PRIVATE
     "${UPSTREAM}/debug_font"
 )
 target_compile_definitions(butterscotch_ps1 PRIVATE
-    ENABLE_NOOP_RENDERER
     ENABLE_WAD14
     ENABLE_WAD16
     ENABLE_WAD17
@@ -53,4 +56,3 @@ target_compile_definitions(butterscotch_ps1 PRIVATE
 )
 target_compile_options(butterscotch_ps1 PRIVATE -ffunction-sections -fdata-sections)
 target_link_options(butterscotch_ps1 PRIVATE -Wl,--gc-sections)
-
