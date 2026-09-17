@@ -4,9 +4,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-#include "../upstream/data_win.h"
-
-typedef struct {
+typedef struct Ps1AtlasTileEntry {
     int16_t bgDef;
     uint16_t srcX;
     uint16_t srcY;
