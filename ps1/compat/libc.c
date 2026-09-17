@@ -40,3 +40,8 @@ double strtod(const char *nptr,char **endptr) {
     if(*p=='.'){++p;while(*p>='0'&&*p<='9'){v+=(*p-'0')*scale;scale*=0.1;++p;}}
     if(endptr)*endptr=(char*)p; return sign*v;
 }
+/* PS1 has no hosted process to return to; Butterscotch uses exit() only for fatal paths. */
+void exit(int status) {
+    (void)status;
+    for (;;) { }
+}
