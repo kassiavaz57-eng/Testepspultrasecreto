@@ -2,7 +2,7 @@
 #include <psxcd.h>
 #include "loop.h"
 
-#define DATA_WIN_PATH "cdrom:\\DATA.WIN;1"
+#define DATA_WIN_PATH "\\DATA.WIN;1"
 
 int main(void) {
     ResetGraph(0);
