@@ -37,10 +37,13 @@ static void ps1DebugGpuInit(void) {
 }
 
 static void ps1DebugColor(uint8_t r, uint8_t g, uint8_t b) {
-    RECT rect = {0, 0, PS1_GAME_WIDTH, PS1_GAME_HEIGHT};
-    ClearImage(&rect, r, g, b);
+    /* Use the normal DRAWENV clear path instead of ClearImage, keeping this
+       checkpoint compatible with the same GPU setup used by the real renderer. */
+    setRGB0(&ps1DebugDraw, r, g, b);
+    ps1DebugDraw.isbg = 1;
+    PutDrawEnv(&ps1DebugDraw);
     DrawSync(0);
-    for (int i = 0; i < 5; i++) VSync(0);
+    VSync(0);
 }
 
 static bool ps1LoadDataWin(DataWin** outDataWin) {
