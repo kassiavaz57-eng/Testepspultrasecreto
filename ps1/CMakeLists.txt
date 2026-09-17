@@ -24,6 +24,7 @@ set(PS1_SOURCES
     platform.c
     ps1_renderer.c
     ps1_texture_cache.c
+    ps1_texture_pages.c
     ps1_spu_adpcm.c
     ps1_file_system.c
     ps1_gamepad.c
