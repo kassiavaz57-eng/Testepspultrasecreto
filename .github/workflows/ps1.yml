@@ -21,15 +21,21 @@ jobs:
         run: |
           python3 - <<'PY'
           from pathlib import Path
+          import re
+
           p = Path('ps1/ps1_renderer.c')
           s = p.read_text()
-          s = s.replace('static void ps1EndView(Renderer*r){(void)r}', 'static void ps1EndView(Renderer*r){(void)r;}')
+          s = re.sub(r'static void ps1EndView\(Renderer\*r\)\{\(void\)r\}', 'static void ps1EndView(Renderer*r){(void)r;}', s)
           s = s.replace('.drawSetBlendMode=ps1DrawSetBlendMode', '.gpuSetBlendMode=ps1DrawSetBlendMode')
-          s = s.replace(',.drawSetAlphaTest=ps1DrawSetAlphaTest', '')
-          s = s.replace(',.drawSetColorWriteMask=ps1DrawSetColorWriteMask', '')
-          s = s.replace(',.drawSetBlendEnable=ps1DrawSetBlendEnable', '')
-          s = s.replace(',.drawSetBlendFactors=ps1DrawSetBlendFactors', '')
-          s = s.replace(',.present=ps1Present', '')
+          s = re.sub(r',?\.drawSetAlphaTest=ps1DrawSetAlphaTest', '', s)
+          s = re.sub(r',?\.drawSetColorWriteMask=ps1DrawSetColorWriteMask', '', s)
+          s = re.sub(r',?\.drawSetBlendEnable=ps1DrawSetBlendEnable', '', s)
+          s = re.sub(r',?\.drawSetBlendFactors=ps1DrawSetBlendFactors', '', s)
+          s = re.sub(r',?\.present=ps1Present', '', s)
+          p.write_text(s)
+
+          p = Path('ps1/ps1_fast_renderer.c')
+          s = p.read_text().replace('RendererVTable', 'RendererVtable')
           p.write_text(s)
           PY
 
