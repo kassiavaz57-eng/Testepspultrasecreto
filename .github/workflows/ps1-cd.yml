@@ -70,8 +70,6 @@ jobs:
                 <file name="TEXTURES.BIN" type="data" source="cd/TEXTURES.BIN"/>
                 <file name="CLUT4.BIN" type="data" source="cd/CLUT4.BIN"/>
                 <file name="CLUT8.BIN" type="data" source="cd/CLUT8.BIN"/>
-                <file name="SOUNDBNK.BIN" type="data" source="cd/SOUNDBNK.BIN"/>
-                <file name="SOUNDS.BIN" type="data" source="cd/SOUNDS.BIN"/>
               </directory_tree>
             </track>
           </iso_project>
