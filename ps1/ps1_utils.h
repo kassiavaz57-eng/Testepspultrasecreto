@@ -2,35 +2,17 @@
 #define _BS_PS1_UTILS_H_
 
 #include "common.h"
-#include <psxetc.h>
 #include <stdint.h>
 
-#define GS_VRAM_SIZE (4 * 1024 * 1024)
-
-// Clamp alpha to 0.0-1.0, then scale to PS1 GS range (0-128).
-// Without clamping, values > 1.0 cause uint8_t overflow/wrapping, making fades repeat.
-static inline uint8_t alphaToGS(float alpha) {
+/* PS1 has no PS2-style device/IOP layer in this port. Resources are read
+   through the PSn00bSDK CD-ROM stream exposed by stdio_compat. */
+static inline uint8_t PS1Utils_alphaToGpu(float alpha) {
+    if (alpha < 0.0f) alpha = 0.0f;
     if (alpha > 1.0f) alpha = 1.0f;
-    else if (0.0f > alpha) alpha = 0.0f;
-    return (uint8_t) (alpha * 128.0f);
+    return (uint8_t)(alpha * 255.0f);
 }
 
-typedef struct {
-    char* key;
-    bool usesISO9660;
-} PS1DeviceKey;
-
-extern PS1DeviceKey deviceKey;
-extern bool deviceKeyLoaded;
-
-void PS1Utils_extractDeviceKey(const char* path);
-void PS1Utils_loadFSDrivers();
+/* Converts a logical asset name to the ISO9660 path used by the PS1 CD stream. */
 char* PS1Utils_createDevicePath(const char* path);
-
-#ifdef GPROF_PROFILING
-// Loads USB mass storage IOP drivers (usbd, bdm, bdmfs_fatfs, usbmass_bd)
-// so gprof can write gmon.out to mass: when not running from host:
-void PS1Utils_loadMassStorageDrivers();
-#endif
 
 #endif /* _BS_PS1_UTILS_H_ */
