@@ -17,16 +17,28 @@ bool Ps1SpriteMap_piece(const Ps1TexturePagePiece* piece,
         return false;
     }
 
-    /* Source-space rectangle represented by this physical atlas piece. */
+    /*
+     * Ps1TexturePages_resolveTPAG() stores piece->x/y in source/crop space:
+     *   piece->x = cropX + (physicalAtlasX - atlasX)
+     *   piece->y = cropY + (physicalAtlasY - atlasY)
+     *
+     * The physical atlas rectangle can be resized relative to cropW/cropH.
+     * Therefore the source interval represented by this piece is NOT simply
+     * [piece->x, piece->x + piece->width]. Recover the source interval using
+     * the same source->atlas ratio used by the preprocessor.
+     */
+    const int32_t atlasOffX = (int32_t)piece->x - (int32_t)piece->cropX;
+    const int32_t atlasOffY = (int32_t)piece->y - (int32_t)piece->cropY;
+
     int32_t pieceSrcX0 = (int32_t)piece->cropX +
-        ((int32_t)piece->x * (int32_t)piece->cropW) / (int32_t)piece->atlasWidth;
+        (atlasOffX * (int32_t)piece->cropW) / (int32_t)piece->atlasWidth;
     int32_t pieceSrcY0 = (int32_t)piece->cropY +
-        ((int32_t)piece->y * (int32_t)piece->cropH) / (int32_t)piece->atlasHeight;
+        (atlasOffY * (int32_t)piece->cropH) / (int32_t)piece->atlasHeight;
     int32_t pieceSrcX1 = (int32_t)piece->cropX +
-        (((int32_t)piece->x + (int32_t)piece->width) * (int32_t)piece->cropW) /
+        ((atlasOffX + (int32_t)piece->width) * (int32_t)piece->cropW) /
             (int32_t)piece->atlasWidth;
     int32_t pieceSrcY1 = (int32_t)piece->cropY +
-        (((int32_t)piece->y + (int32_t)piece->height) * (int32_t)piece->cropH) /
+        ((atlasOffY + (int32_t)piece->height) * (int32_t)piece->cropH) /
             (int32_t)piece->atlasHeight;
 
     pieceSrcX0 = clamp32(pieceSrcX0, (int32_t)piece->cropX,
@@ -47,15 +59,20 @@ bool Ps1SpriteMap_piece(const Ps1TexturePagePiece* piece,
 
     if (srcX1 <= srcX0 || srcY1 <= srcY0) return false;
 
-    int32_t srcRelX0 = srcX0 - pieceSrcX0;
-    int32_t srcRelY0 = srcY0 - pieceSrcY0;
-    int32_t srcRelX1 = srcX1 - pieceSrcX0;
-    int32_t srcRelY1 = srcY1 - pieceSrcY0;
+    /* Map the clipped source rectangle back into this physical atlas piece. */
+    int32_t atlasX0 = (srcX0 - pieceSrcX0) * (int32_t)piece->width /
+                      (pieceSrcX1 - pieceSrcX0);
+    int32_t atlasY0 = (srcY0 - pieceSrcY0) * (int32_t)piece->height /
+                      (pieceSrcY1 - pieceSrcY0);
+    int32_t atlasX1 = (srcX1 - pieceSrcX0) * (int32_t)piece->width /
+                      (pieceSrcX1 - pieceSrcX0);
+    int32_t atlasY1 = (srcY1 - pieceSrcY0) * (int32_t)piece->height /
+                      (pieceSrcY1 - pieceSrcY0);
 
-    int32_t atlasX0 = (srcRelX0 * (int32_t)piece->width) / (pieceSrcX1 - pieceSrcX0);
-    int32_t atlasY0 = (srcRelY0 * (int32_t)piece->height) / (pieceSrcY1 - pieceSrcY0);
-    int32_t atlasX1 = (srcRelX1 * (int32_t)piece->width) / (pieceSrcX1 - pieceSrcX0);
-    int32_t atlasY1 = (srcRelY1 * (int32_t)piece->height) / (pieceSrcY1 - pieceSrcY0);
+    atlasX0 = clamp32(atlasX0, 0, piece->width);
+    atlasY0 = clamp32(atlasY0, 0, piece->height);
+    atlasX1 = clamp32(atlasX1, atlasX0, piece->width);
+    atlasY1 = clamp32(atlasY1, atlasY0, piece->height);
 
     out->srcX = srcX0;
     out->srcY = srcY0;
