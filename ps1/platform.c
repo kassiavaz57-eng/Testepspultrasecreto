@@ -15,7 +15,7 @@ bool platformInit(int32_t reqW, int32_t reqH, const char *title, bool headless) 
 
 void platformInitFunctions(Runner *runner) { (void)runner; }
 void platformExit(void) {}
-void platformSwapBuffers(void) { Ps1Renderer_present(); }
+void platformSwapBuffers(void) { /* Main owns the PS1 frame presentation. */ }
 void *platformGetProcAddress(const char *name) { (void)name; return NULL; }
 bool platformHandleEvents(void) { return false; }
 void platformGetMousePos(double *xPos, double *yPos) {
