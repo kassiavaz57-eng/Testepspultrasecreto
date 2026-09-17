@@ -37,21 +37,19 @@ bool Ps1AtlasTiles_init(void) {
     uint16_t tpagCount = rd16(f, &ok);
     uint16_t tileCount = rd16(f, &ok);
     uint16_t atlasCount = rd16(f, &ok);
-    (void)tpagCount;
-    (void)atlasCount;
     if (!ok) {
         fclose(f);
         return false;
     }
 
-    /* Skip atlas table. Each entry is dataOffset:u32, width:u16,
-       height:u16, bpp:u8, dataSize:u32, compression:u8. */
-    if (fseek(f, (long)atlasCount * 16L, SEEK_CUR) != 0) {
+    /* Atlas entry: dataOffset:u32, width:u16, height:u16, bpp:u8,
+       dataSize:u32, compression:u8 = 14 bytes. */
+    if (fseek(f, (long)atlasCount * 14L, SEEK_CUR) != 0) {
         fclose(f);
         return false;
     }
 
-    /* Skip TPAG table. Each entry is 10 uint16 fields. */
+    /* TPAG entry: ten uint16 fields = 20 bytes. */
     if (fseek(f, (long)tpagCount * 20L, SEEK_CUR) != 0) {
         fclose(f);
         return false;
