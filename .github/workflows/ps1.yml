@@ -116,12 +116,10 @@ jobs:
             -DCMAKE_BUILD_TYPE=Release
           cmake --build ps1/build -j2
 
-      - name: Package real Deltarune PS1 image
+      - name: Package real Deltarune PS1 disc image
         uses: actions/upload-artifact@v4
         with:
-          name: butterscotch-deltarune-ps1
+          name: butterscotch-deltarune-ps1-disc
           path: |
-            ps1/build/butterscotch_ps1.exe
-            ps1/build/*.elf
             ps1/build/butterscotch-ps1.bin
             ps1/build/butterscotch-ps1.cue
