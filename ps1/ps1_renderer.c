@@ -178,7 +178,7 @@ static void ps1DrawTiledPart(Renderer*r,int32_t t,int32_t x,int32_t y,int32_t w,
 
 static void ps1DrawText(Renderer*r,const char*text,float x,float y,float xs,float ys,float ang,float sep){(void)xs;(void)ys;(void)ang;(void)sep;Ps1Renderer*p=(Ps1Renderer*)r;Ps1RenderBuffer*b=&p->buffers[p->active];p->nextPacket=(uint8_t*)FntSort(&b->ot[0],p->nextPacket,sx(p,x),sy(p,y),text);}
 static void ps1DrawTextColor(Renderer*r,const char*t,float x,float y,float xs,float ys,float ang,int32_t c1,int32_t c2,int32_t c3,int32_t c4,float a,float sep){(void)c2;(void)c3;(void)c4;(void)a;ps1DrawText(r,t,x,y,xs,ys,ang,sep);}
-static void ps1DrawTextUI(Renderer*r,const char*t,float x,float y,float xs,float ys,float ang,int32_t c1,int32_t c2,int32_t c3,int32_t c4,float a,float sep){ps1DrawTextColor(r,t,x,y,xs,ys,ang,c1,c2,c3,c4,a,sep);}
+static void ps1DrawTextUI(Renderer*r,const char*t,float x,float y,float xs,float ys,float ang,int32_t c1,int32_t c2,int32_t c3,int32_t c4,float a,float sep){ps1DrawTextColor(r,t,x,y,xs,ys,xs,ys,ang,c1,c2,c3,c4,a,sep);}
 
 static void ps1PrimitiveBegin(Renderer*r,int32_t p){(void)r;(void)p;} static void ps1PrimitiveBeginTexture(Renderer*r,int32_t p,int32_t t){(void)r;(void)p;(void)t;} static void ps1PrimitiveEnd(Renderer*r){(void)r;} static void ps1DrawVertex(Renderer*r,float x,float y,float z,uint32_t c,float a,float u,float v){(void)r;(void)x;(void)y;(void)z;(void)c;(void)a;(void)u;(void)v;} static void ps1DrawVertexBuffer(Renderer*r,VertexBuffer*b,int32_t p,int32_t t,int32_t o,int32_t c){(void)r;(void)b;(void)p;(void)t;(void)o;(void)c;}
 static void ps1Flush(Renderer* renderer){Ps1Renderer*p=(Ps1Renderer*)renderer;Ps1RenderBuffer*b=&p->buffers[p->active];DrawSync(0);DrawOTagEnv(&b->ot[PS1_OT_LENGTH-1],&b->draw);ClearOTagR(b->ot,PS1_OT_LENGTH);p->nextPacket=b->packet;}
@@ -193,6 +193,7 @@ static void ps1SetMatrix(Renderer*r,int32_t t,Matrix4f m){(void)r;(void)t;(void)
 static RendererVtable ps1Vtable;
 
 Renderer* Ps1Renderer_create(void){
+    ResetGraph(0);
     Ps1Renderer*p=(Ps1Renderer*)safeMalloc(sizeof(Ps1Renderer));memset(p,0,sizeof(*p));p->base.vtable=&ps1Vtable;p->active=0;
     SetDefDispEnv(&p->buffers[0].disp,0,0,PS1_WIDTH,PS1_HEIGHT);SetDefDrawEnv(&p->buffers[0].draw,0,PS1_HEIGHT,PS1_WIDTH,PS1_HEIGHT);
     SetDefDispEnv(&p->buffers[1].disp,0,PS1_HEIGHT,PS1_WIDTH,PS1_HEIGHT);SetDefDrawEnv(&p->buffers[1].draw,0,0,PS1_WIDTH,PS1_HEIGHT);
