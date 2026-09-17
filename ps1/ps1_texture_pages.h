@@ -19,7 +19,22 @@ typedef struct { uint16_t atlasId, atlasX, atlasY, width, height; uint16_t cropX
 typedef struct { uint32_t dataOffset; uint16_t width, height; uint8_t bpp; uint32_t dataSize; uint8_t compression; } Ps1PageAtlas;
 typedef struct { bool valid; uint16_t atlasId, pageX, pageY; uint8_t bpp; uint16_t vramX, vramY; uint32_t lastUsed; } Ps1PageSlot;
 typedef struct { bool valid; uint16_t index, x, y; uint32_t lastUsed; } Ps1PageClut;
-typedef struct { int16_t x, y; uint16_t width, height, u, v, tpage, clut; } Ps1TexturePagePiece;
+
+/*
+ * One PS1 texture-page primitive worth of a TPAG.
+ *
+ * x/y/width/height are atlas-local coordinates used by the current renderer
+ * for clipping.  The additional crop/atlas dimensions preserve the original
+ * TPAG mapping so the renderer can later distinguish GameMaker sprite-space
+ * from physical atlas texels when atlas packing resized a cropped sprite.
+ */
+typedef struct {
+    int16_t x, y;
+    uint16_t width, height;
+    uint16_t u, v, tpage, clut;
+    uint16_t cropX, cropY, cropW, cropH;
+    uint16_t atlasWidth, atlasHeight;
+} Ps1TexturePagePiece;
 
 typedef struct {
     Ps1PageTPAG* tpag;
