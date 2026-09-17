@@ -19,13 +19,19 @@ jobs:
 
       - name: Fix PS1 renderer source syntax
         run: |
-          sed -i 's/static void ps1EndView(Renderer\\*r){(void)r}/static void ps1EndView(Renderer*r){(void)r;}/' ps1/ps1_renderer.c
-          sed -i 's/\\.drawSetBlendMode=ps1DrawSetBlendMode/\\.gpuSetBlendMode=ps1DrawSetBlendMode/' ps1/ps1_renderer.c
-          sed -i 's/,\\.drawSetAlphaTest=ps1DrawSetAlphaTest/,/' ps1/ps1_renderer.c
-          sed -i 's/,\\.drawSetColorWriteMask=ps1DrawSetColorWriteMask/,/' ps1/ps1_renderer.c
-          sed -i 's/,\\.drawSetBlendEnable=ps1DrawSetBlendEnable/,/' ps1/ps1_renderer.c
-          sed -i 's/,\\.drawSetBlendFactors=ps1DrawSetBlendFactors/,/' ps1/ps1_renderer.c
-          sed -i 's/,\\.present=ps1Present/,/' ps1/ps1_renderer.c
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('ps1/ps1_renderer.c')
+          s = p.read_text()
+          s = s.replace('static void ps1EndView(Renderer*r){(void)r}', 'static void ps1EndView(Renderer*r){(void)r;}')
+          s = s.replace('.drawSetBlendMode=ps1DrawSetBlendMode', '.gpuSetBlendMode=ps1DrawSetBlendMode')
+          s = s.replace(',.drawSetAlphaTest=ps1DrawSetAlphaTest', '')
+          s = s.replace(',.drawSetColorWriteMask=ps1DrawSetColorWriteMask', '')
+          s = s.replace(',.drawSetBlendEnable=ps1DrawSetBlendEnable', '')
+          s = s.replace(',.drawSetBlendFactors=ps1DrawSetBlendFactors', '')
+          s = s.replace(',.present=ps1Present', '')
+          p.write_text(s)
+          PY
 
       - name: Build PS1 executable
         run: |
