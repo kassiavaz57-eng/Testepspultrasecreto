@@ -9,7 +9,7 @@
 #define PS1_TEXTURE_BASE_X 320
 #define PS1_TEXTURE_BASE_Y 0
 /* The bottom 32 VRAM lines are outside both 320x240 framebuffers and the
- * texture area.  Keep all palettes there so CLUT uploads cannot overwrite
+ * texture area. Keep all palettes there so CLUT uploads cannot overwrite
  * either rendered pixels or texture pages. */
 #define PS1_CLUT_BASE_X 320
 #define PS1_CLUT_Y 480
@@ -138,20 +138,30 @@ static uint32_t atlasPixelBytes(uint16_t width,uint16_t height,uint8_t bpp){
     return (bpp==4)?(((uint32_t)width*height)+1)/2:(uint32_t)width*height;
 }
 
+/* TEXTURES.BIN stores indexed atlas pixels already packed according to the
+ * atlas bpp. PS1 LoadImage needs the same packed representation, but its
+ * transfer width is expressed in 16-bit VRAM words. In particular, a 4bpp
+ * source byte contains TWO pixels; treating it as one pixel corrupts every
+ * 4bpp atlas. */
 static uint32_t packIndexedPixels(const uint8_t* indexed,uint16_t width,uint16_t height,uint8_t bpp,uint16_t* out){
-    uint32_t pixels=(uint32_t)width*height;
     uint32_t wordsPerRow=(bpp==4)?(((uint32_t)width+3)/4):(((uint32_t)width+1)/2);
-    uint32_t src=0;
-    repeat(height,y) repeat(wordsPerRow,x){
-        uint16_t word=0;
-        if(bpp==4){
-            uint8_t p0=src<pixels?indexed[src++]:0,p1=src<pixels?indexed[src++]:0,p2=src<pixels?indexed[src++]:0,p3=src<pixels?indexed[src++]:0;
-            word=(uint16_t)((p0&15)|((p1&15)<<4)|((p2&15)<<8)|((p3&15)<<12));
-        }else{
-            uint8_t p0=src<pixels?indexed[src++]:0,p1=src<pixels?indexed[src++]:0;
-            word=(uint16_t)(p0|((uint16_t)p1<<8));
+    uint32_t bytesPerRow=(bpp==4)?(((uint32_t)width+1)/2):(uint32_t)width;
+    repeat(height,y) {
+        const uint8_t* row=indexed + (uint32_t)y*bytesPerRow;
+        repeat(wordsPerRow,x) {
+            if(bpp==4){
+                uint32_t byte0=x*2;
+                uint8_t a=(byte0<bytesPerRow)?row[byte0]:0;
+                uint8_t b=(byte0+1<bytesPerRow)?row[byte0+1]:0;
+                /* Preserve the original nibble order from the indexed atlas. */
+                out[(uint32_t)y*wordsPerRow+x]=(uint16_t)(a|((uint16_t)b<<8));
+            } else {
+                uint32_t byte0=x*2;
+                uint8_t a=(byte0<bytesPerRow)?row[byte0]:0;
+                uint8_t b=(byte0+1<bytesPerRow)?row[byte0+1]:0;
+                out[(uint32_t)y*wordsPerRow+x]=(uint16_t)(a|((uint16_t)b<<8));
+            }
         }
-        out[y*wordsPerRow+x]=word;
     }
     return wordsPerRow*height;
 }
