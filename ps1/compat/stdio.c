@@ -14,17 +14,27 @@ static void ps1_file_init(void) {
 
 static int ps1_load_sector(FILE *f, uint32_t sector) {
     CdlLOC loc;
+    uint32_t remaining, count;
     ps1_file_init();
     if (sector * 2048u >= f->size) return 0;
+
+    /* DATA.WIN is read sequentially in large blocks. The old implementation
+       issued one Setloc + CdRead + CdReadSync for every 2048-byte sector,
+       which makes parsing a multi-megabyte real DATA.WIN painfully slow on
+       the PS1 CD subsystem. Keep the buffer small, but amortize CD commands. */
+    remaining = (f->size - sector * 2048u + 2047u) / 2048u;
+    count = remaining > 8u ? 8u : remaining;
+
     CdIntToPos(CdPosToInt(&f->cd.pos) + (int)sector, &loc);
     if (!CdControl(CdlSetloc, (uint8_t *)&loc, 0)) return 0;
-    if (!CdRead(1, (uint32_t *)f->sector, CdlModeSpeed)) return 0;
+    if (!CdRead((int)count, (uint32_t *)f->sector, CdlModeSpeed)) return 0;
     if (CdReadSync(0, 0) < 0) return 0;
+
     f->sectorBase = sector * 2048u;
+    f->sectorCount = count;
     f->sectorValid = 1;
     return 1;
 }
-
 FILE *fopen(const char *path, const char *mode) {
     FILE *f;
     if (!path || !mode || mode[0] != 'r') return NULL;
@@ -89,10 +99,10 @@ size_t fread(void *ptr, size_t size, size_t count, FILE *f) {
         uint32_t sector = f->pos / 2048u;
         uint32_t off = f->pos & 2047u;
         size_t n;
-        if (!f->sectorValid || f->sectorBase != sector * 2048u) {
+        if (!f->sectorValid || sector < f->sectorBase / 2048u || sector >= f->sectorBase / 2048u + f->sectorCount) {
             if (!ps1_load_sector(f, sector)) break;
         }
-        n = 2048u - off;
+        n = (size_t)f->sectorCount * 2048u - off;
         if (n > want - done) n = want - done;
         memcpy(out + done, f->sector + off, n);
         f->pos += (uint32_t)n;
