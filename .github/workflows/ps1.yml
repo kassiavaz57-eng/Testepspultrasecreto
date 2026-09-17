@@ -2,12 +2,6 @@ name: Butterscotch PS1
 
 on:
   workflow_dispatch:
-  push:
-    branches:
-      - ps1-experiment
-    paths:
-      - "ps1/**"
-      - ".github/workflows/ps1.yml"
 
 jobs:
   build-ps1:
