@@ -45,12 +45,10 @@ target_include_directories(butterscotch_ps1 BEFORE PRIVATE
 )
 target_compile_definitions(butterscotch_ps1 PRIVATE
     ENABLE_NOOP_RENDERER
-    USE_NOOP_FILE_SYSTEM
     ENABLE_WAD14
     ENABLE_WAD16
     ENABLE_WAD17
     PLATFORM_PS1
-    __wasi__
     DISABLE_SCREENSHOTS
 )
 target_compile_options(butterscotch_ps1 PRIVATE -ffunction-sections -fdata-sections)
