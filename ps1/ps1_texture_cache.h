@@ -9,7 +9,8 @@
 
 #define PS1_TEXTURE_MAX_SLOTS 16
 #define PS1_CLUT4_CACHE_SLOTS 32
-#define PS1_CLUT8_CACHE_SLOTS 4
+/* VRAM area x=320..1023, y=480..511 fits two 256-word CLUT8s per row. */
+#define PS1_CLUT8_CACHE_SLOTS 64
 
 typedef struct {
     uint16_t atlasId;
