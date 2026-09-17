@@ -21,6 +21,19 @@ jobs:
         run: |
           git clone --depth 1 https://github.com/ButterscotchRunner/Butterscotch.git upstream
 
+      - name: Mark Butterscotch PS1 platform
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path("upstream/src/loop.c")
+          s=p.read_text()
+          s=s.replace('#include "stb_image_write.h"', '#if !defined(PLATFORM_PS1)\n#include "stb_image_write.h"\n#endif')
+          s=s.replace('#include <signal.h>', '#if !defined(PLATFORM_PS1)\n#include <signal.h>\n#endif')
+          s=s.replace('#include <fcntl.h>', '#if !defined(PLATFORM_PS1)\n#include <fcntl.h>\n#endif')
+          s=s.replace('#include <unistd.h>', '#if !defined(PLATFORM_PS1)\n#include <unistd.h>\n#endif')
+          p.write_text(s)
+          PY
+
       - name: Build PS1 executable
         run: |
           export PSN00BSDK_LIBS="${PSN00BSDK_LIBS:-/opt/psn00bsdk/lib/libpsn00b}"
