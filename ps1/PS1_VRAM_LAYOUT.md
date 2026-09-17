@@ -16,6 +16,8 @@ The bottom 32 VRAM lines are outside both framebuffers and the page row:
 - CLUT8: y = 480..495, four 256-word palettes per line
 - CLUT4: y = 496, 64 sixteen-word palettes
 
+The PS1 font texture is loaded at `(320,256)` so it stays below the indexed texture-page row and does not overwrite the last page slot.
+
 This layout is intentional: PS1 texture-page coordinates are aligned to 64 VRAM words horizontally and 256 lines vertically. The page cache therefore maps each logical atlas page directly to one valid PS1 TPage.
 
 ## Consequences
