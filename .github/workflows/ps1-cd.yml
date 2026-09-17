@@ -14,6 +14,28 @@ jobs:
       - name: Fetch Butterscotch source
         run: git clone --depth 1 https://github.com/ButterscotchRunner/Butterscotch.git upstream
 
+      - name: Fetch official Butterscotch preprocessor
+        run: git clone --depth 1 https://github.com/ButterscotchRunner/ButterscotchPreprocessor.git preprocessor
+
+      - name: Build official preprocessor
+        run: |
+          cd preprocessor
+          chmod +x ./gradlew
+          ./gradlew :processor-cli:installDist --no-daemon
+
+      - name: Generate real Chapter 1 runtime assets
+        run: |
+          rm -rf ps1/assets
+          mkdir -p ps1/assets
+          ./preprocessor/processor-cli/build/install/processor-cli/bin/butterscotch-preprocessor \
+            data.win \
+            --output ps1/assets \
+            --target ps2
+          test -s ps1/assets/ATLAS.BIN
+          test -s ps1/assets/TEXTURES.BIN
+          test -s ps1/assets/CLUT4.BIN
+          test -s ps1/assets/CLUT8.BIN
+
       - name: Build real Butterscotch core with PS1 backend
         run: |
           export PSN00BSDK_LIBS=/opt/psn00bsdk/lib/libpsn00b
@@ -28,6 +50,12 @@ jobs:
           mkdir -p ps1/cd out
           cp ps1/build/butterscotch_ps1.exe ps1/cd/BUTTER.EXE
           cp data.win ps1/cd/DATA.WIN
+          cp ps1/assets/ATLAS.BIN ps1/cd/ATLAS.BIN
+          cp ps1/assets/TEXTURES.BIN ps1/cd/TEXTURES.BIN
+          cp ps1/assets/CLUT4.BIN ps1/cd/CLUT4.BIN
+          cp ps1/assets/CLUT8.BIN ps1/cd/CLUT8.BIN
+          if [ -s ps1/assets/SOUNDBNK.BIN ]; then cp ps1/assets/SOUNDBNK.BIN ps1/cd/SOUNDBNK.BIN; fi
+          if [ -s ps1/assets/SOUNDS.BIN ]; then cp ps1/assets/SOUNDS.BIN ps1/cd/SOUNDS.BIN; fi
           printf 'BOOT=cdrom:\\BUTTER.EXE;1\nTCB=4\nEVENT=10\nSTACK=801FFFF0\n' > ps1/cd/SYSTEM.CNF
           cat > ps1/cd.xml <<'XML'
           <?xml version="1.0"?>
@@ -38,6 +66,12 @@ jobs:
                 <file name="SYSTEM.CNF" type="data" source="cd/SYSTEM.CNF"/>
                 <file name="BUTTER.EXE" type="data" source="cd/BUTTER.EXE"/>
                 <file name="DATA.WIN" type="data" source="cd/DATA.WIN"/>
+                <file name="ATLAS.BIN" type="data" source="cd/ATLAS.BIN"/>
+                <file name="TEXTURES.BIN" type="data" source="cd/TEXTURES.BIN"/>
+                <file name="CLUT4.BIN" type="data" source="cd/CLUT4.BIN"/>
+                <file name="CLUT8.BIN" type="data" source="cd/CLUT8.BIN"/>
+                <file name="SOUNDBNK.BIN" type="data" source="cd/SOUNDBNK.BIN"/>
+                <file name="SOUNDS.BIN" type="data" source="cd/SOUNDS.BIN"/>
               </directory_tree>
             </track>
           </iso_project>
