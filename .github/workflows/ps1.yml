@@ -106,25 +106,14 @@ jobs:
           s = p.read_text().replace('RendererVTable', 'RendererVtable')
           p.write_text(s)
 
-          # PS1 has only 2 MiB of RAM. The real DataWin parser normally
-          # allocates a complete copy of every parsed chunk before parsing it.
-          # That creates a peak of (chunk + parsed data), which is fatal for
-          # large Deltarune chunks. On PS1, keep the real parser but let
-          # BinaryReader stream directly from the real DATA.WIN instead.
+          # PS1 has only 2 MiB of RAM. Avoid the large temporary chunk
+          # allocation used by the desktop/PS2 fast path. Keep the real
+          # DataWin parser and BinaryReader, but let PS1 parse directly from
+          # the DATA.WIN FILE stream.
           p = Path('upstream/src/data_win.c')
           s = p.read_text()
-          old = '''        if (shouldParse && chunkLength > 0 && options.loadType == DATAWINLOADTYPE_LOAD_PER_CHUNK) {
-            chunkBuffer = (uint8_t *)malloc(chunkLength);
-            if (chunkBuffer) {
-                size_t read = fread(chunkBuffer, 1, chunkLength, reader.file);
-                if (read != chunkLength) {
-                    logError("DataWin: short read on chunk %.4s (expected %u, got %zu)\\n", chunkName, chunkLength, read);
-                    exit(1);
-                }
-                BinaryReader_setBuffer(&reader, chunkBuffer, chunkDataStart, chunkLength);
-            }
-        }'''
-          new = '''#ifndef PLATFORM_PS1
+          pattern = r'''(?ms)^        if \(shouldParse && chunkLength > 0 && options\.loadType == DATAWINLOADTYPE_LOAD_PER_CHUNK\) \{.*?^        \}\n'''
+          replacement = '''#ifndef PLATFORM_PS1
         if (shouldParse && chunkLength > 0 && options.loadType == DATAWINLOADTYPE_LOAD_PER_CHUNK) {
             chunkBuffer = (uint8_t *)malloc(chunkLength);
             if (chunkBuffer) {
@@ -136,10 +125,12 @@ jobs:
                 BinaryReader_setBuffer(&reader, chunkBuffer, chunkDataStart, chunkLength);
             }
         }
-#endif'''
-          if old not in s:
-              raise SystemExit('DataWin chunk-buffer block not found')
-          p.write_text(s.replace(old, new, 1))
+#endif
+'''
+          s2, n = re.subn(pattern, replacement, s, count=1)
+          if n != 1:
+              raise SystemExit('could not locate DataWin per-chunk buffer block')
+          p.write_text(s2)
           PY
 
       - name: Build real PS1 executable and CD image
