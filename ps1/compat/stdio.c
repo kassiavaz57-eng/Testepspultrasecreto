@@ -27,7 +27,10 @@ static int ps1_load_sector(FILE *f, uint32_t sector) {
 
     CdIntToPos(CdPosToInt(&f->cd.pos) + (int)sector, &loc);
     if (!CdControl(CdlSetloc, (uint8_t *)&loc, 0)) return 0;
-    if (!CdRead((int)count, (uint32_t *)f->sector, CdlModeSpeed)) return 0;
+    /* CdRead() starts the asynchronous transfer; its return value is not a
+       success/failure boolean in PSn00bSDK. Completion/error is reported by
+       CdReadSync(), so do not reject a valid read because CdRead() returns 0. */
+    CdRead((int)count, (uint32_t *)f->sector, CdlModeSpeed);
     if (CdReadSync(0, 0) < 0) return 0;
 
     f->sectorBase = sector * 2048u;
