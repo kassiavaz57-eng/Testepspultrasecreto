@@ -21,6 +21,12 @@ jobs:
         run: |
           git clone --depth 1 https://github.com/ButterscotchRunner/ButterscotchPreprocessor.git preprocessor
 
+      - name: Cache generated asset bundle
+        uses: actions/cache@v4
+        with:
+          path: ps1/generated
+          key: butterscotch-ps1-assets-${{ hashFiles('data.win') }}
+
       - name: Generate real Butterscotch PS2-format asset bundle
         run: |
           mkdir -p ps1/generated
