@@ -187,8 +187,7 @@ jobs:
                           "                }\n"
                           "                BinaryReader_setBuffer(&reader, chunkBuffer, chunkDataStart, chunkLength);\n"
                           "            }\n"
-                          "        }\n"
-                          "#endif\n")
+                          "        }\n")
           s2, n = re.subn(pattern, replacement, s, count=1)
           if n != 1:
               raise SystemExit('could not locate DataWin per-chunk buffer block')
