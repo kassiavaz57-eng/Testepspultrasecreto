@@ -46,6 +46,21 @@ static void ps1DebugColor(uint8_t r, uint8_t g, uint8_t b) {
     VSync(0);
 }
 
+static void ps1ParseProgress(const char* chunkName, int chunkIndex, int totalChunks, DataWin* dataWin, void* userData) {
+    (void)dataWin;
+    (void)userData;
+    /* Temporary parser probe: each chunk gets a distinct visible colour.
+       If parsing aborts/hangs, DuckStation shows the last chunk reached. */
+    static const uint8_t palette[][3] = {
+        {32, 32, 32}, {64, 0, 96}, {0, 64, 96}, {0, 96, 64},
+        {96, 64, 0}, {96, 0, 64}, {64, 96, 0}, {0, 96, 96},
+        {96, 32, 32}, {32, 96, 32}, {32, 32, 96}, {96, 96, 32}
+    };
+    const unsigned p = (unsigned)chunkIndex % (sizeof(palette) / sizeof(palette[0]));
+    ps1DebugColor(palette[p][0], palette[p][1], palette[p][2]);
+    logInfo("PS1 DataWin chunk %d/%d: %.4s\\n", chunkIndex + 1, totalChunks, chunkName);
+}
+
 static bool ps1LoadDataWin(DataWin** outDataWin) {
     DataWinParserOptions options = {0};
     /* First-boot subset: keep the REAL DataWin/VM path, but parse only the
@@ -72,6 +87,8 @@ static bool ps1LoadDataWin(DataWin** outDataWin) {
     options.lazyLoadTextures = true;
     options.lazyLoadAudio = true;
     options.loadType = DATAWINLOADTYPE_LOAD_PER_CHUNK;
+    options.progressCallback = ps1ParseProgress;
+    options.progressCallbackUserData = NULL;
 
     char* path = PS1Utils_createDevicePath("DATA.WIN");
     logInfo("Butterscotch PS1: loading real %s\n", path);
