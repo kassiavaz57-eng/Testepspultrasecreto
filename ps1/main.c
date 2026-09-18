@@ -82,11 +82,18 @@ static bool ps1LoadDataWin(DataWin** outDataWin) {
        Large optional metadata (audio, shaders, extensions, paths, timelines,
        language tables) can be loaded later when the core loop is alive. */
     options.parseGen8 = true;
+    options.parseOptn = true;
+    options.parseLang = true;
+    options.parseExtn = true;
+    options.parseSond = true;
+    options.parseAgrp = true;
     options.parseSprt = true;
     options.parseBgnd = true;
     options.parseScpt = true;
     options.parseGlob = true;
+    options.parseShdr = true;
     options.parseFont = true;
+    options.parseTmln = true;
     options.parseObjt = true;
     options.parseRoom = true;
     options.parseTpag = true;
