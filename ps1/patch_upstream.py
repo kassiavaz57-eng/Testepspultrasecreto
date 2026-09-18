@@ -199,26 +199,7 @@ if old_loop not in ds:
     raise SystemExit("SPRT loop start not found")
 ds = ds.replace(old_loop, new_loop, 1)
 
-old_end = '''    }
-
-    free(ptrs);
-}
-
-static void parseBGND'''
-new_end = '''    }
-#ifdef PLATFORM_PS1
-    free(ps1SprtOrder);
-#endif
-
-    free(ptrs);
-}
-
-static void parseBGND'''
-if old_end not in ds:
-    raise SystemExit("SPRT function end not found")
-ds = ds.replace(old_end, new_end, 1)
-
-sprt_mask_guard = 'if (spr->sepMasks == 1 || !skipLoadingPreciseMasksForNonPreciseSprites) {'
+old_end = '''    }\n\n    free(ptrs);\n}\n\nstatic void parseBGND'''\nnew_end = '''    }\n#ifdef PLATFORM_PS1\n    free(ps1SprtOrder);\n#endif\n\n    free(ptrs);\n}\n\nstatic void parseBGND'''\nif old_end in ds:\n    ds = ds.replace(old_end, new_end, 1)\nelse:\n    # Upstream can change the function that follows parseSPRT. Find parseSPRT's\n    # own free(ptrs); terminator instead of depending on parseBGND being next.\n    sprt_fn = ds.find(sprt_order_marker)\n    sprt_free = ds.find("    free(ptrs);\\n}", sprt_fn)\n    if sprt_fn < 0 or sprt_free < 0:\n        raise SystemExit("SPRT function end not found")\n    ds = ds[:sprt_free] + "#ifdef PLATFORM_PS1\\n    free(ps1SprtOrder);\\n#endif\\n\\n" + ds[sprt_free:]\n\nsprt_mask_guard = 'if (spr->sepMasks == 1 || !skipLoadingPreciseMasksForNonPreciseSprites) {'
 sprt_mask_replacement = '''#ifdef PLATFORM_PS1
             /*
              * Chapter 1 boot does not need pixel collision masks. Keep the real
