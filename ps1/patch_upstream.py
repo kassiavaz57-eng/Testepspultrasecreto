@@ -217,7 +217,7 @@ else:
     sprt_free = ds.find("    free(ptrs);\\n}", sprt_fn)
     if sprt_fn < 0 or sprt_free < 0:
         raise SystemExit("SPRT function end not found")
-    ds = ds[:sprt_free] + "#ifdef PLATFORM_PS1\\n    free(ps1SprtOrder);\\n#endif\\n\\n" + ds[sprt_free:]
+    ds = ds[:sprt_free] + "#ifdef PLATFORM_PS1\n    free(ps1SprtOrder);\n#endif\n\n" + ds[sprt_free:]
 
 sprt_mask_guard = 'if (spr->sepMasks == 1 || !skipLoadingPreciseMasksForNonPreciseSprites) {'
 sprt_mask_replacement = '''#ifdef PLATFORM_PS1
