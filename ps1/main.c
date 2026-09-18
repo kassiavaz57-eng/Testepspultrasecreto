@@ -4,6 +4,7 @@
 #include <stdlib.h>
 #include <psxetc.h>
 #include <psxgpu.h>
+#include <psxfont.h>
 
 #include "runner.h"
 #include "runner_keyboard.h"
@@ -26,6 +27,7 @@
 /* Temporary on-screen checkpoints: keep the real runtime intact while locating the early boot stop. */
 static DISPENV ps1DebugDisp;
 static DRAWENV ps1DebugDraw;
+static int ps1DebugFontId = -1;
 
 static void ps1DebugGpuInit(void) {
     ResetGraph(0);
@@ -34,6 +36,8 @@ static void ps1DebugGpuInit(void) {
     PutDispEnv(&ps1DebugDisp);
     PutDrawEnv(&ps1DebugDraw);
     SetDispMask(1);
+    FntLoad(960, 0);
+    ps1DebugFontId = FntOpen(8, 8, 304, 16, 0, 80);
 }
 
 static void ps1DebugColor(uint8_t r, uint8_t g, uint8_t b) {
@@ -58,6 +62,7 @@ static void ps1ParseProgress(const char* chunkName, int chunkIndex, int totalChu
     };
     const unsigned p = (unsigned)chunkIndex % (sizeof(palette) / sizeof(palette[0]));
     ps1DebugColor(palette[p][0], palette[p][1], palette[p][2]);
+    if (ps1DebugFontId >= 0) { FntPrint(ps1DebugFontId, "DATA.WIN %d/%d %.4s", chunkIndex + 1, totalChunks, chunkName); FntFlush(-1); }
     logInfo("PS1 DataWin chunk %d/%d: %.4s\\n", chunkIndex + 1, totalChunks, chunkName);
 }
 
