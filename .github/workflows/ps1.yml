@@ -6,12 +6,45 @@ on:
   workflow_dispatch:
 
 jobs:
+  preprocess-assets:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Java 21 for the real Butterscotch preprocessor
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Fetch Butterscotch preprocessor
+        run: |
+          git clone --depth 1 https://github.com/ButterscotchRunner/ButterscotchPreprocessor.git preprocessor
+
+      - name: Generate real Butterscotch PS2-format asset bundle
+        run: |
+          mkdir -p ps1/generated
+          ./preprocessor/gradlew --no-daemon :processor-cli:run --args="data.win -o ps1/generated --target ps2"
+
+      - name: Upload generated runtime assets
+        uses: actions/upload-artifact@v4
+        with:
+          name: butterscotch-ps1-assets
+          path: ps1/generated/
+
   build-ps1:
+    needs: preprocess-assets
     runs-on: ubuntu-latest
     container:
       image: luksamuk/psxtoolchain:latest
     steps:
       - uses: actions/checkout@v4
+
+      - name: Download generated runtime assets
+        uses: actions/download-artifact@v4
+        with:
+          name: butterscotch-ps1-assets
+          path: ps1/generated
 
       - name: Fetch Butterscotch upstream
         run: |
