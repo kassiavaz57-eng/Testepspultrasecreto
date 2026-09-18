@@ -234,10 +234,6 @@ if sprt_mask_guard not in ds:
 ds = ds.replace(sprt_mask_guard, sprt_mask_replacement, 1)
 # Close the non-PS1 branch before the existing total-mask padding logic.
 ds = ds.replace('            // Pad the TOTAL mask data to 4-byte alignment (not per-mask)', '#endif\n\n            // Pad the TOTAL mask data to 4-byte alignment (not per-mask)', 1)
-if sprt_mask_guard not in ds:
-    raise SystemExit("SPRT mask guard not found in upstream data_win.c")
-ds = ds.replace(sprt_mask_guard, sprt_mask_replacement, 1)
-
 # On PS1, keep GEN8 and SPRT on the cached FILE path. Both parsers are sequential/seek-based
 # and do not need a whole-chunk heap allocation; keeping GEN8 on the same FILE path also
 # avoids a buffer->FILE transition immediately before the next chunk header.
