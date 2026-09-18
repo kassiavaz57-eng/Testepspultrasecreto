@@ -157,12 +157,90 @@ jobs:
           hook = '''#ifdef PLATFORM_PS1\nextern void ps1DataWinDebugStage(const char* stage);\n#define PS1_DATAWIN_STAGE(stage) ps1DataWinDebugStage(stage)\n#else\n#define PS1_DATAWIN_STAGE(stage) ((void)0)\n#endif\n'''
           if 'PS1_DATAWIN_STAGE' not in ds:
               ds = hook + ds
-          modern_marker = '''    g->timestamp = BinaryReader_readUint64(reader);\n    g->displayName = readStringPtr(reader, dw);'''
-          modern_replacement = '''    g->timestamp = BinaryReader_readUint64(reader);\n    PS1_DATAWIN_STAGE("modern-timestamp");\n    g->displayName = readStringPtr(reader, dw);\n    PS1_DATAWIN_STAGE("modern-display");'''
-          if modern_marker not in ds:
-              raise SystemExit('modern GEN8 marker not found in upstream data_win.c')
-          ds = ds.replace(modern_marker, modern_replacement, 1)
-          complete_marker = '''    // Seed the detected version from GEN8.
+          modern_marker = '''    g->timestamp = BinaryReader_readUint64(reader);
+    g->displayName = readStringPtr(reader, dw);
+    g->activeTargets = BinaryReader_readUint64(reader);
+    g->functionClassifications = BinaryReader_readUint64(reader);
+    g->steamAppID = BinaryReader_readInt32(reader);
+    if (g->wadVersion >= 14) {
+        g->debuggerPort = BinaryReader_readUint32(reader);
+    }
+
+    // Room order SimpleList
+    g->roomOrderCount = BinaryReader_readUint32(reader);
+    if (g->roomOrderCount > 0) {
+        g->roomOrder = (int32_t *)safeMalloc(g->roomOrderCount * sizeof(int32_t));
+        repeat(g->roomOrderCount, i) {
+            g->roomOrder[i] = BinaryReader_readInt32(reader);
+        }
+    } else {
+        g->roomOrder = nullptr;
+    }
+
+    if (g->major >= 2) {
+        BinaryReader_skip(reader, 8);
+        BinaryReader_skip(reader, 8*4);
+        g->gms2FPS = BinaryReader_readFloat32(reader);
+        BinaryReader_skip(reader, 4);
+        BinaryReader_skip(reader, 16);
+    }'''
+          modern_replacement = '''    g->timestamp = BinaryReader_readUint64(reader);
+    PS1_DATAWIN_STAGE("modern-timestamp");
+    g->displayName = readStringPtr(reader, dw);
+    PS1_DATAWIN_STAGE("modern-display");
+
+    /* Chapter 1 uses the real WAD17 room order. The PS1 bulk-reader must not
+       trust a malformed/variant count beyond the GEN8 chunk boundary. */
+    size_t ps1_gen8_remaining = reader->buffer != nullptr
+        ? reader->bufferSize - reader->bufferPos
+        : reader->fileSize - BinaryReader_getPosition(reader);
+
+    g->activeTargets = 0;
+    g->functionClassifications = 0;
+    g->steamAppID = 0;
+    g->debuggerPort = 0;
+    g->roomOrderCount = 0;
+    g->roomOrder = nullptr;
+
+    if (ps1_gen8_remaining >= 8) {
+        g->activeTargets = BinaryReader_readUint64(reader);
+        ps1_gen8_remaining -= 8;
+    }
+    if (ps1_gen8_remaining >= 8) {
+        g->functionClassifications = BinaryReader_readUint64(reader);
+        ps1_gen8_remaining -= 8;
+    }
+    if (ps1_gen8_remaining >= 4) {
+        g->steamAppID = BinaryReader_readInt32(reader);
+        ps1_gen8_remaining -= 4;
+    }
+    if (g->wadVersion >= 14 && ps1_gen8_remaining >= 4) {
+        g->debuggerPort = BinaryReader_readUint32(reader);
+        ps1_gen8_remaining -= 4;
+    }
+
+    if (ps1_gen8_remaining >= 4) {
+        uint32_t count = BinaryReader_readUint32(reader);
+        ps1_gen8_remaining -= 4;
+        if ((uint64_t)count <= ps1_gen8_remaining / 4u) {
+            g->roomOrderCount = count;
+            if (count > 0) {
+                g->roomOrder = (int32_t *)safeMalloc((size_t)count * sizeof(int32_t));
+                repeat(count, i) {
+                    g->roomOrder[i] = BinaryReader_readInt32(reader);
+                }
+                ps1_gen8_remaining -= (size_t)count * 4u;
+            }
+        }
+    }
+
+    if (g->major >= 2 && ps1_gen8_remaining >= 64) {
+        BinaryReader_skip(reader, 8);
+        BinaryReader_skip(reader, 8 * 4);
+        g->gms2FPS = BinaryReader_readFloat32(reader);
+        BinaryReader_skip(reader, 4);
+        BinaryReader_skip(reader, 16);
+    }'''          complete_marker = '''    // Seed the detected version from GEN8.
 '''
           complete_replacement = '''    // Seed the detected version from GEN8.
     PS1_DATAWIN_STAGE("modern-complete");
