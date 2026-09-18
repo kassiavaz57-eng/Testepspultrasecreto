@@ -6,7 +6,7 @@ import re
 
 p = Path("ps1/ps1_renderer.c")
 s = p.read_text()
-s = re.sub(r"static void ps1EndView\\(Renderer\\*r\\)\\{\\(void\\)r[^}]*\\}", "static void ps1EndView(Renderer*r){(void)r;}", s)
+s = re.sub(r"static void ps1EndView\(Renderer\*r\)\{\(void\)r[^}]*\}", "static void ps1EndView(Renderer*r){(void)r;}", s)
 s = s.replace("RendererVTable", "RendererVtable")
 
 marker = "static void ps1DrawSetBlendFactors(Renderer*r,BlendFactors f){((Ps1Renderer*)r)->blendFactors=f;}"
@@ -155,7 +155,6 @@ modern_replacement = r"""    g->timestamp = BinaryReader_readUint64(reader);
     }
 """
 ds = ds[:start] + modern_replacement + ds[end:]
-
 complete_marker = "    // Seed the detected version from GEN8.\n"
 if complete_marker not in ds:
     raise SystemExit("GEN8 completion marker not found")
