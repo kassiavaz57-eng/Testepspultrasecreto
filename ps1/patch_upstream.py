@@ -241,6 +241,9 @@ old_bulk = """        if (shouldParse && chunkLength > 0 && options.loadType == 
 new_bulk = """        if (shouldParse && chunkLength > 0 && options.loadType == DATAWINLOADTYPE_LOAD_PER_CHUNK
             && memcmp(chunkName, "SPRT", 4) != 0
             && memcmp(chunkName, "GEN8", 4) != 0
+#ifdef PLATFORM_PS1
+            && memcmp(chunkName, "ACRV", 4) != 0
+#endif
         ) {
             chunkBuffer = (uint8_t *)malloc(chunkLength);"""
 if old_bulk not in ds:
