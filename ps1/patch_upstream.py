@@ -213,14 +213,13 @@ else:
     # Upstream can change the function that follows parseSPRT. Find parseSPRT's
     # own free(ptrs); terminator instead of depending on parseBGND being next.
     sprt_fn = ds.find(sprt_order_marker)
-    sprt_free = ds.find("    free(ptrs);\\n}", sprt_fn)
+    sprt_free = ds.find("    free(ptrs);\n}", sprt_fn)
     if sprt_fn < 0 or sprt_free < 0:
         raise SystemExit("SPRT function end not found")
-    ds = ds[:sprt_free] + "#ifdef PLATFORM_PS1\n    free(ps1SprtOrder);\n#endif\n\n" + ds[sprt_free:]
+    ds = ds[:sprt_free] + "    free(ps1SprtOrder);\n\n" + ds[sprt_free:]
 
 sprt_mask_guard = 'if (spr->sepMasks == 1 || !skipLoadingPreciseMasksForNonPreciseSprites) {'
-sprt_mask_replacement = '''#ifdef PLATFORM_PS1
-            /*
+sprt_mask_replacement = '''            /*
              * Chapter 1 boot does not need pixel collision masks. Keep the real
              * SPRT metadata and consume the mask bytes, but do not allocate the
              * potentially huge mask arrays on the PS1 heap. Precise masks can be
