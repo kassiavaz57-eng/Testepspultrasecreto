@@ -28,6 +28,8 @@ static DISPENV ps1DebugDisp;
 static DRAWENV ps1DebugDraw;
 static int ps1DebugFontId = -1;
 
+static void ps1DebugColor(uint8_t r, uint8_t g, uint8_t b);
+
 void ps1DataWinDebugStage(const char* stage) {
     ps1DebugColor(96, 32, 0);
     if (ps1DebugFontId >= 0) {
