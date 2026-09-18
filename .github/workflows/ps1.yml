@@ -240,7 +240,8 @@ jobs:
         g->gms2FPS = BinaryReader_readFloat32(reader);
         BinaryReader_skip(reader, 4);
         BinaryReader_skip(reader, 16);
-    }'''          complete_marker = '''    // Seed the detected version from GEN8.
+    }'''
+          complete_marker = '''    // Seed the detected version from GEN8.
 '''
           complete_replacement = '''    // Seed the detected version from GEN8.
     PS1_DATAWIN_STAGE("modern-complete");
