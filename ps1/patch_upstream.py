@@ -175,4 +175,18 @@ if sprt_mask_guard not in ds:
     raise SystemExit("SPRT mask guard not found in upstream data_win.c")
 ds = ds.replace(sprt_mask_guard, sprt_mask_replacement, 1)
 
+# On PS1, do not bulk-malloc the entire SPRT chunk. The real parseSPRT()
+# performs absolute seeks through its pointer table; the PS1 FILE adapter has
+# a sector cache, so direct parsing avoids one giant contiguous PS1 allocation.
+old_bulk = """        if (shouldParse && chunkLength > 0 && options.loadType == DATAWINLOADTYPE_LOAD_PER_CHUNK) {
+            chunkBuffer = (uint8_t *)malloc(chunkLength);"""
+new_bulk = """        if (shouldParse && chunkLength > 0 && options.loadType == DATAWINLOADTYPE_LOAD_PER_CHUNK
+#ifdef PLATFORM_PS1
+            && memcmp(chunkName, "SPRT", 4) != 0
+#endif
+        ) {
+            chunkBuffer = (uint8_t *)malloc(chunkLength);"""
+if old_bulk not in ds:
+    raise SystemExit("bulk-read block not found")
+ds = ds.replace(old_bulk, new_bulk, 1)
 dp.write_text(ds)
