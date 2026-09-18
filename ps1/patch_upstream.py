@@ -159,6 +159,65 @@ complete_marker = "    // Seed the detected version from GEN8.\n"
 if complete_marker not in ds:
     raise SystemExit("GEN8 completion marker not found")
 ds = ds.replace(complete_marker, complete_marker + '    PS1_DATAWIN_STAGE("modern-complete");\n', 1)
+
+# PS1: parse SPRT in ascending file-offset order to avoid random CD seeks.
+sprt_order_marker = 'static void parseSPRT(BinaryReader* reader, DataWin* dw, bool skipLoadingPreciseMasksForNonPreciseSprites) {'
+sprt_order_helper = r'''typedef struct {
+    uint32_t offset;
+    uint32_t index;
+} Ps1SprtParseRef;
+
+static int ps1SprtParseRefCompare(const void* a, const void* b) {
+    const Ps1SprtParseRef* aa = (const Ps1SprtParseRef*)a;
+    const Ps1SprtParseRef* bb = (const Ps1SprtParseRef*)b;
+    if (aa->offset < bb->offset) return -1;
+    if (aa->offset > bb->offset) return 1;
+    return (aa->index > bb->index) - (aa->index < bb->index);
+}
+
+'''
+if sprt_order_marker not in ds:
+    raise SystemExit("parseSPRT marker not found")
+if "Ps1SprtParseRef" not in ds:
+    ds = ds.replace(sprt_order_marker, sprt_order_helper + sprt_order_marker, 1)
+
+old_loop = '''    s->sprites = (Sprite *)safeCalloc(count, sizeof(Sprite));
+    repeat(count, i) {
+        if (ptrs[i] == 0) continue;'''
+new_loop = '''    s->sprites = (Sprite *)safeCalloc(count, sizeof(Sprite));
+#ifdef PLATFORM_PS1
+    Ps1SprtParseRef* ps1SprtOrder = (Ps1SprtParseRef*) safeMalloc(count * sizeof(Ps1SprtParseRef));
+    repeat(count, oi) {
+        ps1SprtOrder[oi].offset = ptrs[oi];
+        ps1SprtOrder[oi].index = oi;
+    }
+    qsort(ps1SprtOrder, count, sizeof(Ps1SprtParseRef), ps1SprtParseRefCompare);
+    repeat(count, oi) {
+        uint32_t i = ps1SprtOrder[oi].index;
+        if (ptrs[i] == 0) continue;'''
+if old_loop not in ds:
+    raise SystemExit("SPRT loop start not found")
+ds = ds.replace(old_loop, new_loop, 1)
+
+old_end = '''    }
+
+    free(ptrs);
+}
+
+static void parseBGND'''
+new_end = '''    }
+#ifdef PLATFORM_PS1
+    free(ps1SprtOrder);
+#endif
+
+    free(ptrs);
+}
+
+static void parseBGND'''
+if old_end not in ds:
+    raise SystemExit("SPRT function end not found")
+ds = ds.replace(old_end, new_end, 1)
+
 sprt_mask_guard = 'if (spr->sepMasks == 1 || !skipLoadingPreciseMasksForNonPreciseSprites) {'
 sprt_mask_replacement = '''#ifdef PLATFORM_PS1
             /*
