@@ -162,6 +162,14 @@ jobs:
           if modern_marker not in ds:
               raise SystemExit('modern GEN8 marker not found in upstream data_win.c')
           ds = ds.replace(modern_marker, modern_replacement, 1)
+          complete_marker = '''    // Seed the detected version from GEN8.
+'''
+          complete_replacement = '''    // Seed the detected version from GEN8.
+    PS1_DATAWIN_STAGE("modern-complete");
+'''
+          if complete_marker not in ds:
+              raise SystemExit('modern GEN8 completion marker not found in upstream data_win.c')
+          ds = ds.replace(complete_marker, complete_replacement, 1)
           dp.write_text(ds)
           PY
 
