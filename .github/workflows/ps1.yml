@@ -136,7 +136,7 @@ jobs:
                           "            if (chunkBuffer) {\n"
                           "                size_t read = fread(chunkBuffer, 1, chunkLength, reader.file);\n"
                           "                if (read != chunkLength) {\n"
-                          "                    logError(\"DataWin: short read on chunk %.4s (expected %u, got %zu)\\n\", chunkName, chunkLength, read);\n"
+                          "                    logError(\"DataWin: short read on chunk %.4s (expected %u, got %zu)\\\\n\", chunkName, chunkLength, read);\n"
                           "                    exit(1);\n"
                           "                }\n"
                           "                BinaryReader_setBuffer(&reader, chunkBuffer, chunkDataStart, chunkLength);\n"
