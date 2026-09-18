@@ -112,6 +112,23 @@ jobs:
           # the DATA.WIN FILE stream.
           p = Path('upstream/src/data_win.c')
           s = p.read_text()
+
+          # Expose fine-grained GEN8 stages on the PS1 debug screen. This is
+          # temporary instrumentation only; it does not replace the parser.
+          marker = '#include "data_win.h"\n'
+          hook = '''#include "data_win.h"\n#ifdef PLATFORM_PS1\nextern void ps1DataWinDebugStage(const char* stage);\n#define PS1_DATAWIN_STAGE(stage) ps1DataWinDebugStage(stage)\n#else\n#define PS1_DATAWIN_STAGE(stage) ((void)0)\n#endif\n'''
+          if marker in s and 'PS1_DATAWIN_STAGE' not in s:
+              s = s.replace(marker, hook, 1)
+          stages = [
+              ('    g->wadVersion = BinaryReader_readUint8(reader);\n', '    g->wadVersion = BinaryReader_readUint8(reader);\n    PS1_DATAWIN_STAGE("version");\n'),
+              ('    g->lastObj = BinaryReader_readUint32(reader);\n', '    g->lastObj = BinaryReader_readUint32(reader);\n    PS1_DATAWIN_STAGE("strings");\n'),
+              ('    g->name = readStringPtr(reader, dw);\n', '    g->name = readStringPtr(reader, dw);\n    PS1_DATAWIN_STAGE("name");\n'),
+              ('    g->roomOrderCount = BinaryReader_readUint32(reader);\n', '    g->roomOrderCount = BinaryReader_readUint32(reader);\n    PS1_DATAWIN_STAGE("room-count");\n'),
+              ('    // Seed the detected version from GEN8.\n', '    PS1_DATAWIN_STAGE("done");\n\n    // Seed the detected version from GEN8.\n')
+          ]
+          for old, new in stages:
+              if old in s:
+                  s = s.replace(old, new, 1)
           pattern = r'''(?ms)^        if \(shouldParse && chunkLength > 0 && options\.loadType == DATAWINLOADTYPE_LOAD_PER_CHUNK\) \{.*?^        \}\n'''
           replacement = ("#ifndef PLATFORM_PS1\n"
                           "        if (shouldParse && chunkLength > 0 && options.loadType == DATAWINLOADTYPE_LOAD_PER_CHUNK) {\n"
