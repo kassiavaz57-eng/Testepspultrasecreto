@@ -230,6 +230,9 @@ if sprt_mask_guard not in ds:
     raise SystemExit("SPRT mask guard not found in upstream data_win.c")
 ds = ds.replace(sprt_mask_guard, sprt_mask_replacement, 1)
 
+# On PS1, keep GEN8 and SPRT on the cached FILE path. Both parsers are sequential/seek-based
+# and do not need a whole-chunk heap allocation; keeping GEN8 on the same FILE path also
+# avoids a buffer->FILE transition immediately before the next chunk header.
 # On PS1, do not bulk-malloc the entire SPRT chunk. The real parseSPRT()
 # performs absolute seeks through its pointer table; the PS1 FILE adapter has
 # a sector cache, so direct parsing avoids one giant contiguous PS1 allocation.
@@ -237,6 +240,7 @@ old_bulk = """        if (shouldParse && chunkLength > 0 && options.loadType == 
             chunkBuffer = (uint8_t *)malloc(chunkLength);"""
 new_bulk = """        if (shouldParse && chunkLength > 0 && options.loadType == DATAWINLOADTYPE_LOAD_PER_CHUNK
             && memcmp(chunkName, "SPRT", 4) != 0
+            && memcmp(chunkName, "GEN8", 4) != 0
         ) {
             chunkBuffer = (uint8_t *)malloc(chunkLength);"""
 if old_bulk not in ds:
