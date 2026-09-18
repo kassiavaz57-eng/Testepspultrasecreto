@@ -24,8 +24,8 @@ jobs:
       - name: Generate real Butterscotch PS2-format asset bundle
         run: |
           mkdir -p ps1/generated
-          cd preprocessor
-          ./gradlew --no-daemon :processor-cli:run --args="../data.win -o ../ps1/generated --target ps2"
+          test -f "$GITHUB_WORKSPACE/data.win"
+          ./preprocessor/gradlew --no-daemon :processor-cli:run --args="$GITHUB_WORKSPACE/data.win -o $GITHUB_WORKSPACE/ps1/generated --target ps2"
 
       - name: Upload generated runtime assets
         uses: actions/upload-artifact@v4
