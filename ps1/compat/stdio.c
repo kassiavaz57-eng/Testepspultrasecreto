@@ -35,10 +35,12 @@ static int ps1_load_sector(FILE *f, uint32_t sector) {
     ps1_file_init();
     if (sector * 2048u >= f->size) return 0;
 
-    /* DATA.WIN is read sequentially in large blocks. Keep the buffer small,
-       but amortize CD commands over several sectors. */
+    /* DATA.WIN parsing can fall back to FILE*-based reads when a chunk is
+       too large for the PS1 heap. SPRT is especially seek-heavy, so keep a
+       substantially larger read-ahead window to amortize CD commands without
+       changing the real Butterscotch parser. */
     remaining = (f->size - sector * 2048u + 2047u) / 2048u;
-    count = remaining > 8u ? 8u : remaining;
+    count = remaining > 64u ? 64u : remaining;
 
     CdIntToPos(CdPosToInt(&f->cd.pos) + (int)sector, &loc);
 
