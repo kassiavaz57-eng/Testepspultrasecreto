@@ -56,6 +56,15 @@ void Ps1Gamepad_poll(RunnerGamepadState* gp, int port) {
     for (int i = 0; i < GP_BUTTON_COUNT; i++)
         slot->buttonValue[i] = slot->buttonDown[i] ? 1.0f : 0.0f;
 
+    /* DualShock/analog-capable pads expose centered 0..255 stick values.
+       Feed the real GameMaker axes instead of leaving them permanently zero. */
+    if (pad->type == PAD_ID_ANALOG_STICK || pad->type == PAD_ID_ANALOG) {
+        slot->axisValue[0] = ((float)pad->ls_x - 128.0f) / 127.0f;
+        slot->axisValue[1] = ((float)pad->ls_y - 128.0f) / 127.0f;
+        slot->axisValue[2] = ((float)pad->rs_x - 128.0f) / 127.0f;
+        slot->axisValue[3] = ((float)pad->rs_y - 128.0f) / 127.0f;
+    }
+
     if (!slot->connected) {
         snprintf(slot->description, sizeof(slot->description), "PlayStation Controller (port %d)", port);
         slot->guid[0] = '\0';
