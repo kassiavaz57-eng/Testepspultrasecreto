@@ -84,8 +84,16 @@ int fseek(FILE *f, long offset, int whence) {
         (whence == SEEK_END) ? (int64_t)f->size + offset : -1;
     if (p < 0) return -1;
     if ((uint64_t)p > f->size) p = f->size;
+    /* Keep the current CD sector window when the new position is already
+       inside it. DataWin performs many small seek/read/seek-back operations
+       while resolving pointer tables; invalidating the window on every seek
+       turns those operations into unnecessary CD reads. */
     f->pos = (uint32_t)p;
-    f->sectorValid = 0;
+    if (!f->sectorValid ||
+        f->pos < f->sectorBase ||
+        f->pos >= f->sectorBase + f->sectorCount * 2048u) {
+        f->sectorValid = 0;
+    }
     return 0;
 }
 
