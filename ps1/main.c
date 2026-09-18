@@ -81,19 +81,23 @@ static bool ps1LoadDataWin(DataWin** outDataWin) {
        asset tables required to construct the first room and execute its GML.
        Large optional metadata (audio, shaders, extensions, paths, timelines,
        language tables) can be loaded later when the core loop is alive. */
+    /* Chapter 1 boot subset: only keep DataWin chunks that the real
+       Runner/VM path needs for rooms, sprites, objects, code and strings.
+       Optional metadata is deliberately skipped on PS1 until Chapter 1
+       proves that it needs it. */
     options.parseGen8 = true;
-    options.parseOptn = true;
-    options.parseLang = true;
-    options.parseExtn = true;
-    options.parseSond = true;
-    options.parseAgrp = true;
+    options.parseOptn = false;
+    options.parseLang = false;
+    options.parseExtn = false;
+    options.parseSond = false;
+    options.parseAgrp = false;
     options.parseSprt = true;
     options.parseBgnd = true;
     options.parseScpt = true;
     options.parseGlob = true;
-    options.parseShdr = true;
+    options.parseShdr = false;
     options.parseFont = true;
-    options.parseTmln = true;
+    options.parseTmln = false;
     options.parseObjt = true;
     options.parseRoom = true;
     options.parseTpag = true;
