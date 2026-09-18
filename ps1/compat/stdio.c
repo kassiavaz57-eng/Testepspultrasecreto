@@ -5,11 +5,28 @@
 static int ps1_file_initialized;
 
 /* CD-ROM is initialized once by PS1Utils_init() before the real DataWin
-   parser starts. Do not call CdInit() again from every FILE operation:
-   the CD controller reset changes its mode/state and can interrupt an
-   in-flight real DATA.WIN read. */
+   parser starts. Do not call CdInit() again from every FILE operation. */
 static void ps1_file_init(void) {
     ps1_file_initialized = 1;
+}
+
+/*
+ * CdControl() is asynchronous and may return 0 when the CD controller is
+ * still processing the previous command. A stdio seek can happen immediately
+ * after a completed sector read, so treating that transient busy result as a
+ * permanent EOF/IO error is unsafe.
+ *
+ * The real PS1 CD library provides CdControlB(), but even that can report a
+ * disk/command error. Retry the target-location command a few times before
+ * giving the parser a short read.
+ */
+static int ps1_setloc(const CdlLOC *loc) {
+    for (int attempt = 0; attempt < 8; attempt++) {
+        if (CdControlB(CdlSetloc, (uint8_t *)loc, 0))
+            return 1;
+        VSync(0);
+    }
+    return 0;
 }
 
 static int ps1_load_sector(FILE *f, uint32_t sector) {
@@ -18,20 +35,26 @@ static int ps1_load_sector(FILE *f, uint32_t sector) {
     ps1_file_init();
     if (sector * 2048u >= f->size) return 0;
 
-    /* DATA.WIN is read sequentially in large blocks. The old implementation
-       issued one Setloc + CdRead + CdReadSync for every 2048-byte sector,
-       which makes parsing a multi-megabyte real DATA.WIN painfully slow on
-       the PS1 CD subsystem. Keep the buffer small, but amortize CD commands. */
+    /* DATA.WIN is read sequentially in large blocks. Keep the buffer small,
+       but amortize CD commands over several sectors. */
     remaining = (f->size - sector * 2048u + 2047u) / 2048u;
     count = remaining > 8u ? 8u : remaining;
 
     CdIntToPos(CdPosToInt(&f->cd.pos) + (int)sector, &loc);
-    if (!CdControl(CdlSetloc, (uint8_t *)&loc, 0)) return 0;
-    /* CdRead() starts the asynchronous transfer; its return value is not a
-       success/failure boolean in PSn00bSDK. Completion/error is reported by
-       CdReadSync(), so do not reject a valid read because CdRead() returns 0. */
-    CdRead((int)count, (uint32_t *)f->sector, CdlModeSpeed);
-    if (CdReadSync(0, 0) < 0) return 0;
+
+    /*
+     * Each CdRead() requires a valid CdlSetloc first. Use the blocking form
+     * and retry transient command-busy states. CdReadRetry() then handles
+     * sector-level read errors/retries using the SDK's CD implementation.
+     */
+    if (!ps1_setloc(&loc))
+        return 0;
+
+    if (!CdReadRetry((int)count, (uint32_t *)f->sector, CdlModeSpeed, 3))
+        return 0;
+
+    if (CdReadSync(0, 0) < 0)
+        return 0;
 
     f->sectorBase = sector * 2048u;
     f->sectorCount = count;
@@ -85,9 +108,7 @@ int fseek(FILE *f, long offset, int whence) {
     if (p < 0) return -1;
     if ((uint64_t)p > f->size) p = f->size;
     /* Keep the current CD sector window when the new position is already
-       inside it. DataWin performs many small seek/read/seek-back operations
-       while resolving pointer tables; invalidating the window on every seek
-       turns those operations into unnecessary CD reads. */
+       inside it. DataWin performs many small seek/read/seek-back operations. */
     f->pos = (uint32_t)p;
     if (!f->sectorValid ||
         f->pos < f->sectorBase ||
@@ -111,7 +132,9 @@ size_t fread(void *ptr, size_t size, size_t count, FILE *f) {
         uint32_t sector = f->pos / 2048u;
         size_t n;
         uint32_t off;
-        if (!f->sectorValid || sector < f->sectorBase / 2048u || sector >= f->sectorBase / 2048u + f->sectorCount) {
+        if (!f->sectorValid ||
+            sector < f->sectorBase / 2048u ||
+            sector >= f->sectorBase / 2048u + f->sectorCount) {
             if (!ps1_load_sector(f, sector)) break;
         }
         off = f->pos - f->sectorBase;
