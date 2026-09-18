@@ -6,7 +6,7 @@ import re
 
 p = Path("ps1/ps1_renderer.c")
 s = p.read_text()
-s = re.sub(r"static void ps1EndView\\(Renderer\\*r\\)\\{\\(void\\)r\\}", "static void ps1EndView(Renderer*r){(void)r;}", s)
+s = re.sub(r"static void ps1EndView\\(Renderer\\*r\\)\\{\\(void\\)r[^}]*\\}", "static void ps1EndView(Renderer*r){(void)r;}", s)
 s = s.replace("RendererVTable", "RendererVtable")
 
 marker = "static void ps1DrawSetBlendFactors(Renderer*r,BlendFactors f){((Ps1Renderer*)r)->blendFactors=f;}"
