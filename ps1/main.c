@@ -65,7 +65,7 @@ static bool ps1LoadDataWin(DataWin** outDataWin) {
     options.parseVari = true;
     options.parseFunc = true;
     options.parseStrg = true;
-    options.parseTxtr = true;
+    options.parseTxtr = false;
     options.parseAudo = false;
     options.skipLoadingPreciseMasksForNonPreciseSprites = true;
     options.lazyLoadRooms = true;
