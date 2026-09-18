@@ -60,27 +60,22 @@ static void ps1DebugColor(uint8_t r, uint8_t g, uint8_t b) {
 }
 
 static void ps1ParseProgress(const char* chunkName, int chunkIndex, int totalChunks, DataWin* dataWin, void* userData) {
+    /* The old coloured checkpoint was useful during early boot debugging, but
+       it forced a GPU sync/VSync for every DATA.WIN chunk. That is disastrous
+       on the CD-bound Chapter 1 fast path. Keep the callback effectively free. */
+    (void)chunkName;
+    (void)chunkIndex;
+    (void)totalChunks;
     (void)dataWin;
     (void)userData;
-    /* Temporary parser probe: each chunk gets a distinct visible colour.
-       If parsing aborts/hangs, DuckStation shows the last chunk reached. */
-    static const uint8_t palette[][3] = {
-        {32, 32, 32}, {64, 0, 96}, {0, 64, 96}, {0, 96, 64},
-        {96, 64, 0}, {96, 0, 64}, {64, 96, 0}, {0, 96, 96},
-        {96, 32, 32}, {32, 96, 32}, {32, 32, 96}, {96, 96, 32}
-    };
-    const unsigned p = (unsigned)chunkIndex % (sizeof(palette) / sizeof(palette[0]));
-    ps1DebugColor(palette[p][0], palette[p][1], palette[p][2]);
-    if (ps1DebugFontId >= 0) { FntPrint(ps1DebugFontId, "DATA.WIN %d/%d %.4s", chunkIndex + 1, totalChunks, chunkName); FntFlush(-1); }
-    logInfo("PS1 DataWin chunk %d/%d: %.4s\\n", chunkIndex + 1, totalChunks, chunkName);
 }
 
 static bool ps1LoadDataWin(DataWin** outDataWin) {
     DataWinParserOptions options = {0};
-    /* First-boot subset: keep the REAL DataWin/VM path, but parse only the
-       asset tables required to construct the first room and execute its GML.
-       Large optional metadata (audio, shaders, extensions, paths, timelines,
-       language tables) can be loaded later when the core loop is alive. */
+    /* Deltarune Chapter 1 target subset.
+       We are NOT implementing generic Butterscotch on PS1: retain only the
+       real DataWin/VM/Runner data paths needed by Chapter 1. Optional engine
+       families stay disabled until Chapter 1 proves that it reaches them. */
     /* Chapter 1 boot subset: only keep DataWin chunks that the real
        Runner/VM path needs for rooms, sprites, objects, code and strings.
        Optional metadata is deliberately skipped on PS1 until Chapter 1
@@ -96,7 +91,7 @@ static bool ps1LoadDataWin(DataWin** outDataWin) {
     options.parseScpt = true;
     options.parseGlob = true;
     options.parseShdr = false;
-    options.parseFont = true;
+    options.parseFont = true; /* real Deltarune text/UI path */
     options.parseTmln = false;
     options.parseObjt = true;
     options.parseRoom = true;
@@ -105,14 +100,14 @@ static bool ps1LoadDataWin(DataWin** outDataWin) {
     options.parseVari = true;
     options.parseFunc = true;
     options.parseStrg = true;
-    options.parseTxtr = false;
+    options.parseTxtr = false; /* generated PS2-format bundle supplies atlas data */
     options.parseAudo = false;
     options.skipLoadingPreciseMasksForNonPreciseSprites = true;
     options.lazyLoadRooms = true;
     options.lazyLoadTextures = true;
     options.lazyLoadAudio = true;
     options.loadType = DATAWINLOADTYPE_LOAD_PER_CHUNK;
-    options.progressCallback = ps1ParseProgress;
+    options.progressCallback = ps1ParseProgress; /* zero-cost in release fast path */
     options.progressCallbackUserData = NULL;
 
     char* path = PS1Utils_createDevicePath("DATA.WIN");
