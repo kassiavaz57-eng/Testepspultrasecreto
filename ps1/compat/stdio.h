@@ -10,7 +10,7 @@ typedef struct {
     CdlFILE cd;
     uint32_t pos;
     uint32_t size;
-    uint8_t sector[2048 * 8];
+    uint8_t sector[2048 * 64];
     uint32_t sectorBase;
     uint32_t sectorCount;
     uint8_t sectorValid;
