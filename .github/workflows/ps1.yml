@@ -138,7 +138,7 @@ jobs:
               if old in s:
                   s = s.replace(old, new, 1)
           pattern = r'''(?ms)^        if \(shouldParse && chunkLength > 0 && options\.loadType == DATAWINLOADTYPE_LOAD_PER_CHUNK\) \{.*?^        \}\n'''
-          replacement = ("#ifndef PLATFORM_PS1\n"
+          replacement = ("#if !defined(PLATFORM_PS1) || (defined(PLATFORM_PS1) && memcmp(chunkName, \"GEN8\", 4) == 0)\n"
                           "        if (shouldParse && chunkLength > 0 && options.loadType == DATAWINLOADTYPE_LOAD_PER_CHUNK) {\n"
                           "            chunkBuffer = (uint8_t *)malloc(chunkLength);\n"
                           "            if (chunkBuffer) {\n"
