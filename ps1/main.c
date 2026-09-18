@@ -48,20 +48,16 @@ static void ps1DebugColor(uint8_t r, uint8_t g, uint8_t b) {
 
 static bool ps1LoadDataWin(DataWin** outDataWin) {
     DataWinParserOptions options = {0};
+    /* First-boot subset: keep the REAL DataWin/VM path, but parse only the
+       asset tables required to construct the first room and execute its GML.
+       Large optional metadata (audio, shaders, extensions, paths, timelines,
+       language tables) can be loaded later when the core loop is alive. */
     options.parseGen8 = true;
-    options.parseOptn = true;
-    options.parseLang = true;
-    options.parseExtn = true;
-    options.parseSond = true;
-    options.parseAgrp = true;
     options.parseSprt = true;
     options.parseBgnd = true;
-    options.parsePath = true;
     options.parseScpt = true;
     options.parseGlob = true;
-    options.parseShdr = true;
     options.parseFont = true;
-    options.parseTmln = true;
     options.parseObjt = true;
     options.parseRoom = true;
     options.parseTpag = true;
@@ -69,10 +65,7 @@ static bool ps1LoadDataWin(DataWin** outDataWin) {
     options.parseVari = true;
     options.parseFunc = true;
     options.parseStrg = true;
-
-    /* Keep the real DataWin parser while avoiding eager materialization of the
-       largest asset sections on the PS1's very small RAM budget. */
-    options.parseTxtr = false;
+    options.parseTxtr = true;
     options.parseAudo = false;
     options.skipLoadingPreciseMasksForNonPreciseSprites = true;
     options.lazyLoadRooms = true;
