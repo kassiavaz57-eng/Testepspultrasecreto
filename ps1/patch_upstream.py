@@ -246,4 +246,23 @@ new_bulk = """        if (shouldParse && chunkLength > 0 && options.loadType == 
 if old_bulk not in ds:
     raise SystemExit("bulk-read block not found")
 ds = ds.replace(old_bulk, new_bulk, 1)
+# Deltarune Chapter 1 PS1 subset: do not parse ACRV on PS1. The real chunk remains
+# in DATA.WIN and upstream behavior is preserved outside PLATFORM_PS1.
+acrv_old = """        } else if (memcmp(chunkName, "ACRV", 4) == 0) {
+            // Animation Curves chunk (GMS 2.3+)
+            DataWin_bumpVersionTo(dw, 2, 3, 0, 0);
+            parseACRV(&reader, dw);
+"""
+acrv_new = """        } else if (memcmp(chunkName, "ACRV", 4) == 0) {
+#ifdef PLATFORM_PS1
+            DataWin_bumpVersionTo(dw, 2, 3, 0, 0);
+#else
+            // Animation Curves chunk (GMS 2.3+)
+            DataWin_bumpVersionTo(dw, 2, 3, 0, 0);
+            parseACRV(&reader, dw);
+#endif
+"""
+if acrv_old in ds:
+    ds = ds.replace(acrv_old, acrv_new, 1)
+
 dp.write_text(ds)
