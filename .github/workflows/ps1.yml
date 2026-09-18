@@ -123,6 +123,14 @@ jobs:
               ('    g->wadVersion = BinaryReader_readUint8(reader);\n', '    g->wadVersion = BinaryReader_readUint8(reader);\n    PS1_DATAWIN_STAGE("version");\n'),
               ('    g->lastObj = BinaryReader_readUint32(reader);\n', '    g->lastObj = BinaryReader_readUint32(reader);\n    PS1_DATAWIN_STAGE("strings");\n'),
               ('    g->name = readStringPtr(reader, dw);\n', '    g->name = readStringPtr(reader, dw);\n    PS1_DATAWIN_STAGE("name");\n'),
+              ('    g->major = BinaryReader_readUint32(reader);\n', '    g->major = BinaryReader_readUint32(reader);\n    PS1_DATAWIN_STAGE("major");\n'),
+              ('    g->minor = BinaryReader_readUint32(reader);\n', '    g->minor = BinaryReader_readUint32(reader);\n    PS1_DATAWIN_STAGE("minor");\n'),
+              ('    g->release = BinaryReader_readUint32(reader);\n', '    g->release = BinaryReader_readUint32(reader);\n    PS1_DATAWIN_STAGE("release");\n'),
+              ('    g->build = BinaryReader_readUint32(reader);\n', '    g->build = BinaryReader_readUint32(reader);\n    PS1_DATAWIN_STAGE("build");\n'),
+              ('    g->defaultWindowWidth = BinaryReader_readUint32(reader);\n', '    g->defaultWindowWidth = BinaryReader_readUint32(reader);\n    PS1_DATAWIN_STAGE("width");\n'),
+              ('    g->defaultWindowHeight = BinaryReader_readUint32(reader);\n', '    g->defaultWindowHeight = BinaryReader_readUint32(reader);\n    PS1_DATAWIN_STAGE("height");\n'),
+              ('    g->timestamp = BinaryReader_readUint64(reader);\n', '    g->timestamp = BinaryReader_readUint64(reader);\n    PS1_DATAWIN_STAGE("timestamp");\n'),
+              ('    g->displayName = readStringPtr(reader, dw);\n', '    g->displayName = readStringPtr(reader, dw);\n    PS1_DATAWIN_STAGE("display");\n'),
               ('    g->roomOrderCount = BinaryReader_readUint32(reader);\n', '    g->roomOrderCount = BinaryReader_readUint32(reader);\n    PS1_DATAWIN_STAGE("room-count");\n'),
               ('    // Seed the detected version from GEN8.\n', '    PS1_DATAWIN_STAGE("done");\n\n    // Seed the detected version from GEN8.\n')
           ]
