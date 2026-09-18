@@ -28,6 +28,14 @@ static DISPENV ps1DebugDisp;
 static DRAWENV ps1DebugDraw;
 static int ps1DebugFontId = -1;
 
+void ps1DataWinDebugStage(const char* stage) {
+    ps1DebugColor(96, 32, 0);
+    if (ps1DebugFontId >= 0) {
+        FntPrint(ps1DebugFontId, "GEN8 %s", stage);
+        FntFlush(-1);
+    }
+}
+
 static void ps1DebugGpuInit(void) {
     ResetGraph(0);
     SetDefDispEnv(&ps1DebugDisp, 0, 0, PS1_GAME_WIDTH, PS1_GAME_HEIGHT);
