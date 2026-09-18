@@ -234,7 +234,7 @@ jobs:
         }
     }
 
-    if (g->major >= 2 && ps1_gen8_remaining >= 64) {
+    if (g->major >= 2 && ps1_gen8_remaining >= 60) {
         BinaryReader_skip(reader, 8);
         BinaryReader_skip(reader, 8 * 4);
         g->gms2FPS = BinaryReader_readFloat32(reader);
