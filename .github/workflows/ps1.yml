@@ -154,7 +154,7 @@ jobs:
           # accidentally searched the renderer string for this marker.
           dp = Path('upstream/data_win.c')
           ds = dp.read_text()
-          hook = '#ifdef PLATFORM_PS1\\nextern void ps1DataWinDebugStage(const char* stage);\\n#define PS1_DATAWIN_STAGE(stage) ps1DataWinDebugStage(stage)\\n#else\\n#define PS1_DATAWIN_STAGE(stage) ((void)0)\\n#endif\\n'
+          hook = '''#ifdef PLATFORM_PS1\nextern void ps1DataWinDebugStage(const char* stage);\n#define PS1_DATAWIN_STAGE(stage) ps1DataWinDebugStage(stage)\n#else\n#define PS1_DATAWIN_STAGE(stage) ((void)0)\n#endif\n'''
           if 'PS1_DATAWIN_STAGE' not in ds:
               ds = hook + ds
           modern_marker = '''    g->timestamp = BinaryReader_readUint64(reader);\n    g->displayName = readStringPtr(reader, dw);'''
