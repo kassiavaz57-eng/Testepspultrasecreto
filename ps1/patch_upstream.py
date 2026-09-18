@@ -185,7 +185,6 @@ old_loop = '''    s->sprites = (Sprite *)safeCalloc(count, sizeof(Sprite));
     repeat(count, i) {
         if (ptrs[i] == 0) continue;'''
 new_loop = '''    s->sprites = (Sprite *)safeCalloc(count, sizeof(Sprite));
-#ifdef PLATFORM_PS1
     Ps1SprtParseRef* ps1SprtOrder = (Ps1SprtParseRef*) safeMalloc(count * sizeof(Ps1SprtParseRef));
     repeat(count, oi) {
         ps1SprtOrder[oi].offset = ptrs[oi];
@@ -227,10 +226,7 @@ sprt_mask_replacement = '''#ifdef PLATFORM_PS1
              * potentially huge mask arrays on the PS1 heap. Precise masks can be
              * restored once Chapter 1 reaches a path that demonstrably requires them.
              */
-            if (false) {
-#else
-            if (spr->sepMasks == 1 || !skipLoadingPreciseMasksForNonPreciseSprites) {
-#endif'''
+            if (false) {'''
 if sprt_mask_guard not in ds:
     raise SystemExit("SPRT mask guard not found in upstream data_win.c")
 ds = ds.replace(sprt_mask_guard, sprt_mask_replacement, 1)
@@ -241,9 +237,7 @@ ds = ds.replace(sprt_mask_guard, sprt_mask_replacement, 1)
 old_bulk = """        if (shouldParse && chunkLength > 0 && options.loadType == DATAWINLOADTYPE_LOAD_PER_CHUNK) {
             chunkBuffer = (uint8_t *)malloc(chunkLength);"""
 new_bulk = """        if (shouldParse && chunkLength > 0 && options.loadType == DATAWINLOADTYPE_LOAD_PER_CHUNK
-#ifdef PLATFORM_PS1
             && memcmp(chunkName, "SPRT", 4) != 0
-#endif
         ) {
             chunkBuffer = (uint8_t *)malloc(chunkLength);"""
 if old_bulk not in ds:
