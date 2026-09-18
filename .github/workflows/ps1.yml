@@ -152,7 +152,7 @@ jobs:
           # Apply the precise modern-WAD GEN8 probe to the real upstream
           # DataWin parser, not to the renderer source. The previous build
           # accidentally searched the renderer string for this marker.
-          dp = Path('upstream/data_win.c')
+          dp = Path('upstream/src/data_win.c')
           ds = dp.read_text()
           hook = '''#ifdef PLATFORM_PS1\nextern void ps1DataWinDebugStage(const char* stage);\n#define PS1_DATAWIN_STAGE(stage) ps1DataWinDebugStage(stage)\n#else\n#define PS1_DATAWIN_STAGE(stage) ((void)0)\n#endif\n'''
           if 'PS1_DATAWIN_STAGE' not in ds:
