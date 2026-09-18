@@ -219,13 +219,21 @@ else:
     ds = ds[:sprt_free] + "    free(ps1SprtOrder);\n\n" + ds[sprt_free:]
 
 sprt_mask_guard = 'if (spr->sepMasks == 1 || !skipLoadingPreciseMasksForNonPreciseSprites) {'
-sprt_mask_replacement = '''            /*
-             * Chapter 1 boot does not need pixel collision masks. Keep the real
-             * SPRT metadata and consume the mask bytes, but do not allocate the
-             * potentially huge mask arrays on the PS1 heap. Precise masks can be
-             * restored once Chapter 1 reaches a path that demonstrably requires them.
-             */
-            if (false) {'''
+sprt_mask_replacement = '''#ifdef PLATFORM_PS1
+            /* CH1 fast path: retain real metadata, consume mask bytes, allocate nothing. */
+            if (spr->sepMasks == 1 || !skipLoadingPreciseMasksForNonPreciseSprites) {
+                uint32_t bytesPerRow = (spr->maskWidth + 7) / 8;
+                uint32_t bytesPerMask = bytesPerRow * spr->maskHeight;
+                BinaryReader_skip(reader, bytesPerMask * maskDataCount);
+                spr->masks = nullptr;
+            }
+#else
+            if (spr->sepMasks == 1 || !skipLoadingPreciseMasksForNonPreciseSprites) {'''
+if sprt_mask_guard not in ds:
+    raise SystemExit("SPRT mask guard not found in upstream data_win.c")
+ds = ds.replace(sprt_mask_guard, sprt_mask_replacement, 1)
+# Close the non-PS1 branch before the existing total-mask padding logic.
+ds = ds.replace('            // Pad the TOTAL mask data to 4-byte alignment (not per-mask)', '#endif\n\n            // Pad the TOTAL mask data to 4-byte alignment (not per-mask)', 1)
 if sprt_mask_guard not in ds:
     raise SystemExit("SPRT mask guard not found in upstream data_win.c")
 ds = ds.replace(sprt_mask_guard, sprt_mask_replacement, 1)
