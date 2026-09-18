@@ -4,7 +4,6 @@
 #include <stdlib.h>
 #include <psxetc.h>
 #include <psxgpu.h>
-#include <psxfont.h>
 
 #include "runner.h"
 #include "runner_keyboard.h"
