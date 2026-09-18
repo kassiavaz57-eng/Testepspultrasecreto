@@ -113,20 +113,19 @@ jobs:
           p = Path('upstream/src/data_win.c')
           s = p.read_text()
           pattern = r'''(?ms)^        if \(shouldParse && chunkLength > 0 && options\.loadType == DATAWINLOADTYPE_LOAD_PER_CHUNK\) \{.*?^        \}\n'''
-          replacement = '''#ifndef PLATFORM_PS1
-        if (shouldParse && chunkLength > 0 && options.loadType == DATAWINLOADTYPE_LOAD_PER_CHUNK) {
-            chunkBuffer = (uint8_t *)malloc(chunkLength);
-            if (chunkBuffer) {
-                size_t read = fread(chunkBuffer, 1, chunkLength, reader.file);
-                if (read != chunkLength) {
-                    logError("DataWin: short read on chunk %.4s (expected %u, got %zu)\\n", chunkName, chunkLength, read);
-                    exit(1);
-                }
-                BinaryReader_setBuffer(&reader, chunkBuffer, chunkDataStart, chunkLength);
-            }
-        }
-#endif
-'''
+          replacement = ("#ifndef PLATFORM_PS1\n"
+                          "        if (shouldParse && chunkLength > 0 && options.loadType == DATAWINLOADTYPE_LOAD_PER_CHUNK) {\n"
+                          "            chunkBuffer = (uint8_t *)malloc(chunkLength);\n"
+                          "            if (chunkBuffer) {\n"
+                          "                size_t read = fread(chunkBuffer, 1, chunkLength, reader.file);\n"
+                          "                if (read != chunkLength) {\n"
+                          "                    logError(\"DataWin: short read on chunk %.4s (expected %u, got %zu)\\n\", chunkName, chunkLength, read);\n"
+                          "                    exit(1);\n"
+                          "                }\n"
+                          "                BinaryReader_setBuffer(&reader, chunkBuffer, chunkDataStart, chunkLength);\n"
+                          "            }\n"
+                          "        }\n"
+                          "#endif\n")
           s2, n = re.subn(pattern, replacement, s, count=1)
           if n != 1:
               raise SystemExit('could not locate DataWin per-chunk buffer block')
