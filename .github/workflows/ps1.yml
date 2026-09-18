@@ -149,17 +149,17 @@ jobs:
           s = p.read_text().replace('RendererVTable', 'RendererVtable')
           p.write_text(s)
 
-          # PS1: keep the real Butterscotch per-chunk buffering path for GEN8.
-          # GEN8 string pointers are resolved through dw->strgBuffer, so the
-          # BinaryReader does not need to remain on the FILE stream here.
+          # Apply the precise modern-WAD GEN8 probe to the real upstream
+          # DataWin parser, not to the renderer source. The previous build
+          # accidentally searched the renderer string for this marker.
+          dp = Path('upstream/data_win.c')
+          ds = dp.read_text()
           modern_marker = '''    g->timestamp = BinaryReader_readUint64(reader);\n    g->displayName = readStringPtr(reader, dw);'''
           modern_replacement = '''    g->timestamp = BinaryReader_readUint64(reader);\n    PS1_DATAWIN_STAGE("modern-timestamp");\n    g->displayName = readStringPtr(reader, dw);\n    PS1_DATAWIN_STAGE("modern-display");'''
-          if modern_marker not in s:
-              raise SystemExit('modern GEN8 marker not found')
-          s = s.replace(modern_marker, modern_replacement, 1)
-          # Restore the exact upstream per-chunk buffer block; only the PS1
-          # debug hook above is platform-specific.
-          p.write_text(s)
+          if modern_marker not in ds:
+              raise SystemExit('modern GEN8 marker not found in upstream data_win.c')
+          ds = ds.replace(modern_marker, modern_replacement, 1)
+          dp.write_text(ds)
           PY
 
       - name: Build real PS1 executable and CD image
