@@ -92,34 +92,12 @@ extern void ps1DataWinDebugStage(const char* stage);
 if "PS1_DATAWIN_STAGE" not in ds:
     ds = hook + ds
 
-modern_marker = """    g->timestamp = BinaryReader_readUint64(reader);
-    g->displayName = readStringPtr(reader, dw);
-    g->activeTargets = BinaryReader_readUint64(reader);
-    g->functionClassifications = BinaryReader_readUint64(reader);
-    g->steamAppID = BinaryReader_readInt32(reader);
-    if (g->wadVersion >= 14) {
-        g->debuggerPort = BinaryReader_readUint32(reader);
-    }
-
-    // Room order SimpleList
-    g->roomOrderCount = BinaryReader_readUint32(reader);
-    if (g->roomOrderCount > 0) {
-        g->roomOrder = (int32_t *)safeMalloc(g->roomOrderCount * sizeof(int32_t));
-        repeat(g->roomOrderCount, i) {
-            g->roomOrder[i] = BinaryReader_readInt32(reader);
-        }
-    } else {
-        g->roomOrder = nullptr;
-    }
-
-    if (g->major >= 2) {
-        BinaryReader_skip(reader, 8);
-        BinaryReader_skip(reader, 8*4);
-        g->gms2FPS = BinaryReader_readFloat32(reader);
-        BinaryReader_skip(reader, 4);
-        BinaryReader_skip(reader, 16);
-    }"""
-modern_replacement = """    g->timestamp = BinaryReader_readUint64(reader);
+start = ds.find("    g->timestamp = BinaryReader_readUint64(reader);")
+end_marker = "    // Seed the detected version from GEN8.\n"
+end = ds.find(end_marker, start)
+if start < 0 or end < 0:
+    raise SystemExit("modern GEN8 parser block not found")
+modern_replacement = r"""    g->timestamp = BinaryReader_readUint64(reader);
     PS1_DATAWIN_STAGE("modern-timestamp");
     g->displayName = readStringPtr(reader, dw);
     PS1_DATAWIN_STAGE("modern-display");
@@ -134,6 +112,7 @@ modern_replacement = """    g->timestamp = BinaryReader_readUint64(reader);
     g->debuggerPort = 0;
     g->roomOrderCount = 0;
     g->roomOrder = nullptr;
+    g->gms2FPS = 0.0f;
 
     if (ps1_gen8_remaining >= 8) {
         g->activeTargets = BinaryReader_readUint64(reader);
@@ -167,16 +146,15 @@ modern_replacement = """    g->timestamp = BinaryReader_readUint64(reader);
         }
     }
 
-    if (g->major >= 2 && ps1_gen8_remaining >= 60) {
+    if (g->major >= 2 && ps1_gen8_remaining >= 64) {
         BinaryReader_skip(reader, 8);
         BinaryReader_skip(reader, 8 * 4);
         g->gms2FPS = BinaryReader_readFloat32(reader);
         BinaryReader_skip(reader, 4);
         BinaryReader_skip(reader, 16);
-    }"""
-if modern_marker not in ds:
-    raise SystemExit("modern GEN8 parser block not found")
-ds = ds.replace(modern_marker, modern_replacement, 1)
+    }
+"""
+ds = ds[:start] + modern_replacement + ds[end:]
 
 complete_marker = "    // Seed the detected version from GEN8.\n"
 if complete_marker not in ds:
