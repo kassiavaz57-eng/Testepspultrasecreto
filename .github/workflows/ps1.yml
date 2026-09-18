@@ -130,7 +130,7 @@ jobs:
               ('    g->defaultWindowWidth = BinaryReader_readUint32(reader);\n', '    g->defaultWindowWidth = BinaryReader_readUint32(reader);\n    PS1_DATAWIN_STAGE("width");\n'),
               ('    g->defaultWindowHeight = BinaryReader_readUint32(reader);\n', '    g->defaultWindowHeight = BinaryReader_readUint32(reader);\n    PS1_DATAWIN_STAGE("height");\n'),
               ('    g->timestamp = BinaryReader_readUint64(reader);\n', '    g->timestamp = BinaryReader_readUint64(reader);\n    PS1_DATAWIN_STAGE("timestamp");\n'),
-              ('    g->displayName = readStringPtr(reader, dw);\n', '    g->displayName = readStringPtr(reader, dw);\n    PS1_DATAWIN_STAGE("display");\n'),
+              ('    g->displayName = readStringPtr(reader, dw);\n', '    PS1_DATAWIN_STAGE("display-begin");\n    g->displayName = readStringPtr(reader, dw);\n    PS1_DATAWIN_STAGE("display");\n'),
               ('    g->roomOrderCount = BinaryReader_readUint32(reader);\n', '    g->roomOrderCount = BinaryReader_readUint32(reader);\n    PS1_DATAWIN_STAGE("room-count");\n'),
               ('    // Seed the detected version from GEN8.\n', '    PS1_DATAWIN_STAGE("done");\n\n    // Seed the detected version from GEN8.\n')
           ]
