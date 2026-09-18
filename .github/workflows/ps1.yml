@@ -149,71 +149,17 @@ jobs:
           s = p.read_text().replace('RendererVTable', 'RendererVtable')
           p.write_text(s)
 
-          # PS1 has only 2 MiB of RAM. Avoid the large temporary chunk
-          # allocation used by the desktop/PS2 fast path. Keep the real
-          # DataWin parser and BinaryReader, but let PS1 parse directly from
-          # the DATA.WIN FILE stream.
-          p = Path('upstream/src/data_win.c')
-          s = p.read_text()
-
-          # Expose fine-grained GEN8 stages on the PS1 debug screen. This is
-          # temporary instrumentation only; it does not replace the parser.
-          marker = '#include "data_win.h"\n'
-          hook = '''#include "data_win.h"\n#ifdef PLATFORM_PS1\nextern void ps1DataWinDebugStage(const char* stage);\n#define PS1_DATAWIN_STAGE(stage) ps1DataWinDebugStage(stage)\n#else\n#define PS1_DATAWIN_STAGE(stage) ((void)0)\n#endif\n'''
-          if marker in s and 'PS1_DATAWIN_STAGE' not in s:
-              s = s.replace(marker, hook, 1)
-          stages = [
-              ('    g->wadVersion = BinaryReader_readUint8(reader);\n', '    g->wadVersion = BinaryReader_readUint8(reader);\n    PS1_DATAWIN_STAGE("version");\n'),
-              ('    g->lastObj = BinaryReader_readUint32(reader);\n', '    g->lastObj = BinaryReader_readUint32(reader);\n    PS1_DATAWIN_STAGE("strings");\n'),
-              ('    g->name = readStringPtr(reader, dw);\n', '    g->name = readStringPtr(reader, dw);\n    PS1_DATAWIN_STAGE("name");\n'),
-              ('    g->major = BinaryReader_readUint32(reader);\n', '    g->major = BinaryReader_readUint32(reader);\n    PS1_DATAWIN_STAGE("major");\n'),
-              ('    g->minor = BinaryReader_readUint32(reader);\n', '    g->minor = BinaryReader_readUint32(reader);\n    PS1_DATAWIN_STAGE("minor");\n'),
-              ('    g->release = BinaryReader_readUint32(reader);\n', '    g->release = BinaryReader_readUint32(reader);\n    PS1_DATAWIN_STAGE("release");\n'),
-              ('    g->build = BinaryReader_readUint32(reader);\n', '    g->build = BinaryReader_readUint32(reader);\n    PS1_DATAWIN_STAGE("build");\n'),
-              ('    g->defaultWindowWidth = BinaryReader_readUint32(reader);\n', '    g->defaultWindowWidth = BinaryReader_readUint32(reader);\n    PS1_DATAWIN_STAGE("width");\n'),
-              ('    g->defaultWindowHeight = BinaryReader_readUint32(reader);\n', '    g->defaultWindowHeight = BinaryReader_readUint32(reader);\n    PS1_DATAWIN_STAGE("height");\n'),
-              ('    g->timestamp = BinaryReader_readUint64(reader);\n', '    g->timestamp = BinaryReader_readUint64(reader);\n    PS1_DATAWIN_STAGE("timestamp");\n'),
-              ('    g->displayName = readStringPtr(reader, dw);\n', '    PS1_DATAWIN_STAGE("display-begin");\n    g->displayName = readStringPtr(reader, dw);\n    PS1_DATAWIN_STAGE("display");\n'),
-              ('    g->roomOrderCount = BinaryReader_readUint32(reader);\n', '    g->roomOrderCount = BinaryReader_readUint32(reader);\n    PS1_DATAWIN_STAGE("room-count");\n'),
-              ('    // Seed the detected version from GEN8.\n', '    PS1_DATAWIN_STAGE("done");\n\n    // Seed the detected version from GEN8.\n')
-          ]
-          for old, new in stages:
-              if old in s:
-                  s = s.replace(old, new, 1)
-          # PS1: keep GEN8 on the real FILE stream. The GEN8 parser contains
-          # absolute STRG pointers and the PS1 BinaryReader must not be left
-          # with a short per-chunk window while resolving them. Other chunks
-          # keep the normal real Butterscotch per-chunk buffering path.
-          pattern = r'''(?ms)^        if \(shouldParse && chunkLength > 0 && options\.loadType == DATAWINLOADTYPE_LOAD_PER_CHUNK\) \{.*?^        \}\n'''
-          replacement = ("#ifndef PLATFORM_PS1\n"
-                          "        if (shouldParse && chunkLength > 0 && options.loadType == DATAWINLOADTYPE_LOAD_PER_CHUNK) {\n"
-                          "            chunkBuffer = (uint8_t *)malloc(chunkLength);\n"
-                          "            if (chunkBuffer) {\n"
-                          "                size_t read = fread(chunkBuffer, 1, chunkLength, reader.file);\n"
-                          "                if (read != chunkLength) {\n"
-                          "                    logError(\"DataWin: short read on chunk %.4s (expected %u, got %zu)\\\\n\", chunkName, chunkLength, read);\n"
-                          "                    exit(1);\n"
-                          "                }\n"
-                          "                BinaryReader_setBuffer(&reader, chunkBuffer, chunkDataStart, chunkLength);\n"
-                          "            }\n"
-                          "        }\n"
-                          "#else\n"
-                          "        if (shouldParse && chunkLength > 0 && options.loadType == DATAWINLOADTYPE_LOAD_PER_CHUNK && memcmp(chunkName, \"GEN8\", 4) != 0) {\n"
-                          "            chunkBuffer = (uint8_t *)malloc(chunkLength);\n"
-                          "            if (chunkBuffer) {\n"
-                          "                size_t read = fread(chunkBuffer, 1, chunkLength, reader.file);\n"
-                          "                if (read != chunkLength) {\n"
-                          "                    logError(\"DataWin: short read on chunk %.4s (expected %u, got %zu)\\\\n\", chunkName, chunkLength, read);\n"
-                          "                    exit(1);\n"
-                          "                }\n"
-                          "                BinaryReader_setBuffer(&reader, chunkBuffer, chunkDataStart, chunkLength);\n"
-                          "            }\n"
-                          "        }\n"
-                          "#endif\n")
-          s2, n = re.subn(pattern, replacement, s, count=1)
-          if n != 1:
-              raise SystemExit('could not locate DataWin per-chunk buffer block')
-          p.write_text(s2)
+          # PS1: keep the real Butterscotch per-chunk buffering path for GEN8.
+          # GEN8 string pointers are resolved through dw->strgBuffer, so the
+          # BinaryReader does not need to remain on the FILE stream here.
+          modern_marker = '''    g->timestamp = BinaryReader_readUint64(reader);\n    g->displayName = readStringPtr(reader, dw);'''
+          modern_replacement = '''    g->timestamp = BinaryReader_readUint64(reader);\n    PS1_DATAWIN_STAGE("modern-timestamp");\n    g->displayName = readStringPtr(reader, dw);\n    PS1_DATAWIN_STAGE("modern-display");'''
+          if modern_marker not in s:
+              raise SystemExit('modern GEN8 marker not found')
+          s = s.replace(modern_marker, modern_replacement, 1)
+          # Restore the exact upstream per-chunk buffer block; only the PS1
+          # debug hook above is platform-specific.
+          p.write_text(s)
           PY
 
       - name: Build real PS1 executable and CD image
