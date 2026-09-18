@@ -118,11 +118,70 @@ static bool ps1LoadDataWin(DataWin** outDataWin) {
     return true;
 }
 
+static void ps1ApplyMappedKey(Runner* runner, int32_t key, bool down) {
+    if (down) RunnerKeyboard_onKeyDown(runner->keyboard, key);
+    else RunnerKeyboard_onKeyUp(runner->keyboard, key);
+}
+
+/*
+ * Deltarune on the original PC build reads keyboard-style GML input in a
+ * number of paths. Keep the PS1 controller usable through the real Runner
+ * keyboard state as well as the GameMaker gamepad API.
+ *
+ * Port 0 mapping:
+ *   D-pad -> arrows
+ *   Cross -> Z
+ *   Square -> X
+ *   Triangle -> C
+ *   Start -> Enter
+ *   Select -> Escape
+ *
+ * Analog sticks are also accepted as D-pad movement when they leave a small
+ * deadzone, so a DualShock works without requiring the game's gamepad API.
+ */
+static void ps1ApplyDeltarunePadInput(Runner* runner, GamepadSlot* slot) {
+    if (!runner || !slot) return;
+
+    const float deadzone = 0.35f;
+    const bool left  = slot->buttonDown[14] || slot->axisValue[0] < -deadzone;
+    const bool right = slot->buttonDown[15] || slot->axisValue[0] >  deadzone;
+    const bool up    = slot->buttonDown[12] || slot->axisValue[1] < -deadzone;
+    const bool down  = slot->buttonDown[13] || slot->axisValue[1] >  deadzone;
+
+    ps1ApplyMappedKey(runner, VK_LEFT, left);
+    ps1ApplyMappedKey(runner, VK_RIGHT, right);
+    ps1ApplyMappedKey(runner, VK_UP, up);
+    ps1ApplyMappedKey(runner, VK_DOWN, down);
+    ps1ApplyMappedKey(runner, 'Z', slot->buttonDown[0]);
+    ps1ApplyMappedKey(runner, 'X', slot->buttonDown[2]);
+    ps1ApplyMappedKey(runner, 'C', slot->buttonDown[3]);
+    ps1ApplyMappedKey(runner, VK_ENTER, slot->buttonDown[9]);
+    ps1ApplyMappedKey(runner, VK_ESCAPE, slot->buttonDown[8]);
+}
+
 static void ps1PollGamepads(Runner* runner) {
     if (runner == NULL || runner->gamepads == NULL) return;
+
     RunnerGamepad_beginFrame(runner->gamepads);
     Ps1Gamepad_poll(runner->gamepads, 0);
     Ps1Gamepad_poll(runner->gamepads, 1);
+
+    /* The first controller is the gameplay controller. Release all mapped
+       keys when it disconnects so a held direction cannot become stuck. */
+    GamepadSlot* slot = &runner->gamepads->slots[0];
+    if (slot->connected) {
+        ps1ApplyDeltarunePadInput(runner, slot);
+    } else if (slot->connectedPrev) {
+        ps1ApplyMappedKey(runner, VK_LEFT, false);
+        ps1ApplyMappedKey(runner, VK_RIGHT, false);
+        ps1ApplyMappedKey(runner, VK_UP, false);
+        ps1ApplyMappedKey(runner, VK_DOWN, false);
+        ps1ApplyMappedKey(runner, 'Z', false);
+        ps1ApplyMappedKey(runner, 'X', false);
+        ps1ApplyMappedKey(runner, 'C', false);
+        ps1ApplyMappedKey(runner, VK_ENTER, false);
+        ps1ApplyMappedKey(runner, VK_ESCAPE, false);
+    }
 }
 
 static void ps1RunFrame(Runner* runner, int32_t gameW, int32_t gameH) {
