@@ -12,6 +12,12 @@
       <file name="SYSTEM.CNF" type="data" source="${PROJECT_SOURCE_DIR}/system.cnf" />
       <file name="BUTTER.EXE" type="data" source="${PROJECT_BINARY_DIR}/butterscotch_ps1.exe" />
       <file name="DATA.WIN" type="data" source="${PROJECT_SOURCE_DIR}/../data.win" />
+      <file name="ATLAS.BIN" type="data" source="${PROJECT_SOURCE_DIR}/generated/ATLAS.BIN" />
+      <file name="TEXTURES.BIN" type="data" source="${PROJECT_SOURCE_DIR}/generated/TEXTURES.BIN" />
+      <file name="CLUT4.BIN" type="data" source="${PROJECT_SOURCE_DIR}/generated/CLUT4.BIN" />
+      <file name="CLUT8.BIN" type="data" source="${PROJECT_SOURCE_DIR}/generated/CLUT8.BIN" />
+      <file name="SOUNDBNK.BIN" type="data" source="${PROJECT_SOURCE_DIR}/generated/SOUNDBNK.BIN" />
+      <file name="SOUNDS.BIN" type="data" source="${PROJECT_SOURCE_DIR}/generated/SOUNDS.BIN" />
     </directory_tree>
   </track>
 </iso_project>
