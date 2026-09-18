@@ -180,12 +180,13 @@ jobs:
           for old, new in stages:
               if old in s:
                   s = s.replace(old, new, 1)
+          # PS1: keep GEN8 on the real FILE stream. The GEN8 parser contains
+          # absolute STRG pointers and the PS1 BinaryReader must not be left
+          # with a short per-chunk window while resolving them. Other chunks
+          # keep the normal real Butterscotch per-chunk buffering path.
           pattern = r'''(?ms)^        if \(shouldParse && chunkLength > 0 && options\.loadType == DATAWINLOADTYPE_LOAD_PER_CHUNK\) \{.*?^        \}\n'''
-          replacement = ("#ifdef PLATFORM_PS1\n"
-                          "        if (shouldParse && chunkLength > 0 && options.loadType == DATAWINLOADTYPE_LOAD_PER_CHUNK && memcmp(chunkName, \"GEN8\", 4) == 0) {\n"
-                          "#else\n"
+          replacement = ("#ifndef PLATFORM_PS1\n"
                           "        if (shouldParse && chunkLength > 0 && options.loadType == DATAWINLOADTYPE_LOAD_PER_CHUNK) {\n"
-                          "#endif\n"
                           "            chunkBuffer = (uint8_t *)malloc(chunkLength);\n"
                           "            if (chunkBuffer) {\n"
                           "                size_t read = fread(chunkBuffer, 1, chunkLength, reader.file);\n"
@@ -195,7 +196,20 @@ jobs:
                           "                }\n"
                           "                BinaryReader_setBuffer(&reader, chunkBuffer, chunkDataStart, chunkLength);\n"
                           "            }\n"
-                          "        }\n")
+                          "        }\n"
+                          "#else\n"
+                          "        if (shouldParse && chunkLength > 0 && options.loadType == DATAWINLOADTYPE_LOAD_PER_CHUNK && memcmp(chunkName, \"GEN8\", 4) != 0) {\n"
+                          "            chunkBuffer = (uint8_t *)malloc(chunkLength);\n"
+                          "            if (chunkBuffer) {\n"
+                          "                size_t read = fread(chunkBuffer, 1, chunkLength, reader.file);\n"
+                          "                if (read != chunkLength) {\n"
+                          "                    logError(\"DataWin: short read on chunk %.4s (expected %u, got %zu)\\\\n\", chunkName, chunkLength, read);\n"
+                          "                    exit(1);\n"
+                          "                }\n"
+                          "                BinaryReader_setBuffer(&reader, chunkBuffer, chunkDataStart, chunkLength);\n"
+                          "            }\n"
+                          "        }\n"
+                          "#endif\n")
           s2, n = re.subn(pattern, replacement, s, count=1)
           if n != 1:
               raise SystemExit('could not locate DataWin per-chunk buffer block')
