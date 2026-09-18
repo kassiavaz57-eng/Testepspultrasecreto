@@ -159,4 +159,20 @@ complete_marker = "    // Seed the detected version from GEN8.\n"
 if complete_marker not in ds:
     raise SystemExit("GEN8 completion marker not found")
 ds = ds.replace(complete_marker, complete_marker + '    PS1_DATAWIN_STAGE("modern-complete");\n', 1)
+sprt_mask_guard = 'if (spr->sepMasks == 1 || !skipLoadingPreciseMasksForNonPreciseSprites) {'
+sprt_mask_replacement = '''#ifdef PLATFORM_PS1
+            /*
+             * Chapter 1 boot does not need pixel collision masks. Keep the real
+             * SPRT metadata and consume the mask bytes, but do not allocate the
+             * potentially huge mask arrays on the PS1 heap. Precise masks can be
+             * restored once Chapter 1 reaches a path that demonstrably requires them.
+             */
+            if (false) {
+#else
+            if (spr->sepMasks == 1 || !skipLoadingPreciseMasksForNonPreciseSprites) {
+#endif'''
+if sprt_mask_guard not in ds:
+    raise SystemExit("SPRT mask guard not found in upstream data_win.c")
+ds = ds.replace(sprt_mask_guard, sprt_mask_replacement, 1)
+
 dp.write_text(ds)
